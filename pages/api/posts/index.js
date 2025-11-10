@@ -109,93 +109,9 @@ export default async function handler(req, res) {
         sessionUser: session.user,
       });
 
-      // 如果 session 中没有 userID，从数据库查找
-      if (!authorUserID && session.user?.email) {
-        // 尝试通过 email 查找用户
-        const dbUser = await users.findOne({ email: session.user.email });
-        console.log('Database user lookup:', {
-          email: session.user.email,
-          found: !!dbUser,
-          hasUserID: dbUser ? !!dbUser.userID : false,
-          userID: dbUser?.userID,
-          user: dbUser ? {
-            userID: dbUser.userID,
-            name: dbUser.name,
-            email: dbUser.email,
-            oauthCompleted: dbUser.oauthCompleted,
-          } : null,
-        });
-        
-        if (dbUser) {
-          if (dbUser.userID) {
-            authorUserID = dbUser.userID;
-            console.log('Found userID for post creation from database:', authorUserID);
-          } else {
-            // 如果用户存在但没有 userID，尝试通过 accounts 集合查找
-            console.warn('User found but no userID, trying to find via accounts:', {
-              email: session.user.email,
-              userId: dbUser._id.toString(),
-              name: dbUser.name,
-            });
-            
-            // 通过 accounts 集合查找关联的用户
-            const accounts = db.collection('accounts');
-            const account = await accounts.findOne({ 
-              userId: dbUser._id,
-              provider: { $in: ['google', 'github', 'facebook'] },
-            });
-            
-            if (account) {
-              // 如果找到 account，说明用户已经通过 OAuth 登录
-              // 尝试查找其他有 userID 的用户记录（通过 email）
-              const userWithUserID = await users.findOne({
-                email: session.user.email,
-                userID: { $ne: null },
-              });
-              
-              if (userWithUserID && userWithUserID.userID) {
-                authorUserID = userWithUserID.userID;
-                console.log('Found userID from another user record:', authorUserID);
-                
-                // 更新当前用户记录，设置 userID
-                await users.updateOne(
-                  { _id: dbUser._id },
-                  { $set: { userID: authorUserID } }
-                );
-                console.log('Updated user record with userID:', authorUserID);
-              } else {
-                // 如果找不到有 userID 的用户记录，生成一个临时的 userID
-                // 使用 email 的前缀作为 userID
-                const tempUserID = session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-                authorUserID = tempUserID;
-                
-                // 更新用户记录，设置 userID
-                await users.updateOne(
-                  { _id: dbUser._id },
-                  { $set: { userID: authorUserID } }
-                );
-                console.log('Generated and set temporary userID:', authorUserID);
-              }
-            } else {
-              // 如果找不到 account，生成一个临时的 userID
-              const tempUserID = session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-              authorUserID = tempUserID;
-              
-              // 更新用户记录，设置 userID
-              await users.updateOne(
-                { _id: dbUser._id },
-                { $set: { userID: authorUserID } }
-              );
-              console.log('Generated and set temporary userID (no account):', authorUserID);
-            }
-          }
-        } else {
-          // 如果通过 email 找不到用户，记录警告
-          console.warn('Cannot find user by email:', {
-            email: session.user.email,
-          });
-        }
-      }
+      // 如果 session 中没有 userID，无法创建贴文
+      // 注意：不要通过 email 查找用户，因为同一个 email 可能对应不同的 provider 和不同的 userID
+      // 应该通过 session 中的 userID 来查找用户
 
       if (!authorUserID) {
         console.error('Cannot create post: no userID', {

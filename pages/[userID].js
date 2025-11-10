@@ -302,6 +302,16 @@ export default function UserProfile() {
         setIsFollowing(data.following);
         // 重新获取用户信息以更新 followers 数量
         await fetchUserProfile();
+        // 如果当前页面是自己的个人首页，也需要更新自己的 following 数量
+        // 因为 follow/unfollow 别人会影响自己的 following 数量
+        if (isOwnProfile) {
+          // 重新获取自己的用户信息
+          const selfResponse = await fetch(`/api/users/${session.user.userID}`);
+          const selfData = await selfResponse.json();
+          if (selfData.success) {
+            setUser(selfData.user);
+          }
+        }
       }
     } catch (error) {
       console.error('Error following/unfollowing user:', error);

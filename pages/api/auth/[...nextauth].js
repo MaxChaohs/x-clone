@@ -87,6 +87,10 @@ export default NextAuth({
         const db = client.db();
         const users = db.collection('users');
         
+        // 保存 provider 信息到 token，以便后续查找用户
+        token.provider = account.provider;
+        token.providerAccountId = account.providerAccountId;
+        
         // 先通過 provider 和 providerId 查找（最可靠）
         let dbUser = await users.findOne({
           provider: account.provider,
@@ -94,20 +98,8 @@ export default NextAuth({
           oauthCompleted: true,
         });
         
-        // 如果找不到，通過 email 查找
-        if (!dbUser && user?.email) {
-          dbUser = await users.findOne({
-            email: user.email,
-            oauthCompleted: true,
-          });
-        }
-        
-        // 如果還是找不到，查找所有匹配 email 的用戶（包括未完成的）
-        if (!dbUser && user?.email) {
-          dbUser = await users.findOne({
-            email: user.email,
-          });
-        }
+        // 注意：不要通过 email 查找用户，因为同一个 email 可能对应不同的 provider 和不同的 userID
+        // 不同 provider 应该创建不同的用户记录，即使 email 相同
         
         if (dbUser) {
           token.id = dbUser._id.toString();
@@ -145,19 +137,19 @@ export default NextAuth({
           });
         }
 
-        // 如果找不到，通過 email 查找
-        if (!dbUser && token.email) {
-          dbUser = await users.findOne({
-            email: token.email,
-            oauthCompleted: true,
+        // 注意：不要通过 email 查找用户，因为同一个 email 可能对应不同的 provider 和不同的 userID
+        // 不同 provider 应该创建不同的用户记录，即使 email 相同
+        // 应该通过 account 的 provider 和 providerId 来查找用户
+        if (!dbUser && token.provider && token.providerAccountId) {
+          const accounts = db.collection('accounts');
+          const account = await accounts.findOne({
+            provider: token.provider,
+            providerAccountId: token.providerAccountId,
           });
-        }
-
-        // 如果還是找不到，查找所有匹配 email 的用戶（包括未完成的）
-        if (!dbUser && session.user.email) {
-          dbUser = await users.findOne({
-            email: session.user.email,
-          });
+          
+          if (account) {
+            dbUser = await users.findOne({ _id: account.userId });
+          }
         }
 
         if (dbUser) {
@@ -193,14 +185,25 @@ export default NextAuth({
         }
         
         // 确保 userID 总是被设置
-        if (!session.user.userID && session.user.email) {
-          // 最后一次尝试：通过 email 查找用户
-          const fallbackUser = await users.findOne({ email: session.user.email });
-          if (fallbackUser) {
-            session.user.userID = fallbackUser.userID;
-            console.log('Session callback: 通过 email 找到 userID', {
-              userID: session.user.userID,
-            });
+        // 注意：不要通过 email 查找用户，因为同一个 email 可能对应不同的 provider 和不同的 userID
+        // 应该通过 account 的 provider 和 providerId 来查找用户
+        if (!session.user.userID) {
+          // 通过 account 查找用户
+          const accounts = db.collection('accounts');
+          const account = await accounts.findOne({
+            provider: token.provider || 'unknown',
+            providerAccountId: token.providerAccountId || 'unknown',
+          });
+          
+          if (account) {
+            const accountUser = await users.findOne({ _id: account.userId });
+            if (accountUser && accountUser.userID) {
+              session.user.userID = accountUser.userID;
+              console.log('Session callback: 通过 account 找到 userID', {
+                userID: session.user.userID,
+                provider: token.provider,
+              });
+            }
           }
         }
       }
