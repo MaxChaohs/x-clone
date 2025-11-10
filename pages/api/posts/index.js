@@ -164,21 +164,49 @@ export default async function handler(req, res) {
       // 确保 userID 存在
       let authorUserID = session.user?.userID;
       let authorEmail = session.user?.email;
+      let authorProvider = session.user?.provider;
       
       // 调试日志
       console.log('Creating post - session check:', {
         sessionUserID: session.user?.userID,
         sessionEmail: session.user?.email,
+        sessionProvider: session.user?.provider,
         sessionName: session.user?.name,
         sessionUser: session.user,
       });
 
       // 如果 session 中没有 userID，尝试从数据库查找
-      if (!authorUserID && authorEmail) {
-        const dbUser = await users.findOne({ email: authorEmail });
-        if (dbUser && dbUser.userID) {
-          authorUserID = dbUser.userID;
-          console.log('Found userID from database:', authorUserID);
+      // 注意：应该通过 provider 和 providerId 查找，而不是通过 email
+      // 因为相同 email 但不同 provider 的账号应该使用不同的 userID
+      if (!authorUserID) {
+        // 首先尝试通过 provider 查找（最可靠）
+        if (authorProvider) {
+          // 通过 NextAuth 的 accounts 集合查找
+          const accounts = db.collection('accounts');
+          // 注意：这里无法直接获取 providerAccountId，所以先尝试通过 email 和 provider 查找
+          // 但只查找相同 provider 的用户
+          const dbUser = await users.findOne({ 
+            email: authorEmail,
+            provider: authorProvider,
+            oauthCompleted: true,
+          });
+          if (dbUser && dbUser.userID) {
+            authorUserID = dbUser.userID;
+            console.log('Found userID from database by provider:', authorUserID);
+          }
+        }
+        
+        // 如果还是找不到，尝试通过 email 查找（但只作为最后的后备方案）
+        // 注意：这可能会导致问题，如果用户有多个 provider 的账号
+        if (!authorUserID && authorEmail) {
+          const dbUser = await users.findOne({ 
+            email: authorEmail,
+            oauthCompleted: true,
+          });
+          if (dbUser && dbUser.userID) {
+            authorUserID = dbUser.userID;
+            console.log('Found userID from database by email (fallback):', authorUserID);
+          }
         }
       }
 
