@@ -42,7 +42,7 @@ export default async function handler(req, res) {
         // 通过 NextAuth 的 accounts 集合查找
         const accounts = db.collection('accounts');
         const account = await accounts.findOne({ 
-          provider: { $in: ['google', 'github', 'facebook'] },
+          provider: { $in: ['google', 'github'] },
           // 这里需要通过其他方式查找，因为 accounts 表可能没有 email
         });
         

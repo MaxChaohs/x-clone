@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!provider || !['google', 'github', 'facebook'].includes(provider)) {
+    if (!provider || !['google', 'github'].includes(provider)) {
       return res.status(400).json({
         success: false,
         message: '請選擇 OAuth Provider',
