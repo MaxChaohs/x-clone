@@ -377,5 +377,7 @@ export default NextAuth({
     maxAge: 7 * 24 * 60 * 60, // 7 天
   },
   secret: process.env.NEXTAUTH_SECRET,
+  // 明確設定 NEXTAUTH_URL，避免 redirect_uri_mismatch 錯誤
+  url: process.env.NEXTAUTH_URL,
 });
 
