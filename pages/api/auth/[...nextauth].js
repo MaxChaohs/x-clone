@@ -318,10 +318,29 @@ export default NextAuth({
       }
 
       if (pendingUser) {
+        // 檢查該 userID 是否已被其他 provider 使用
+        // 如果已被使用，創建新的 userID（確保每個 provider 使用不同的 userID）
+        let finalUserID = pendingUser.userID;
+        const existingUserWithSameID = await users.findOne({
+          userID: pendingUser.userID,
+          provider: { $ne: account.provider }, // 不同 provider
+          oauthCompleted: true,
+        });
+        
+        if (existingUserWithSameID) {
+          // 如果該 userID 已被其他 provider 使用，創建新的 userID
+          finalUserID = `${account.provider}_${account.providerAccountId}`;
+          console.log('userID 已被其他 provider 使用，創建新的 userID:', {
+            oldUserID: pendingUser.userID,
+            newUserID: finalUserID,
+            provider: account.provider,
+          });
+        }
+        
         // 更新用戶記錄，關聯 OAuth 信息
         console.log('找到待關聯用戶:', {
-          userID: pendingUser.userID,
-          provider: pendingUser.provider,
+          userID: finalUserID,
+          provider: account.provider,
           providerId: account.providerAccountId,
         });
         
@@ -329,6 +348,7 @@ export default NextAuth({
           { _id: pendingUser._id },
           {
             $set: {
+              userID: finalUserID, // 使用最終確定的 userID
               providerId: account.providerAccountId,
               email: user.email,
               image: user.image || profile?.picture,
@@ -339,8 +359,9 @@ export default NextAuth({
         );
         
         console.log('用戶 OAuth 關聯完成:', {
-          userID: pendingUser.userID,
+          userID: finalUserID,
           email: user.email,
+          provider: account.provider,
         });
         
         // 確保 NextAuth adapter 能夠找到賬戶記錄
