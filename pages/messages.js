@@ -24,7 +24,8 @@ export default function Messages() {
   }, [status, router]);
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.userID) {
+    // 即使沒有 userID，只要有 email 也可以獲取對話（處理相同 email 但不同 provider 的情況）
+    if (status === 'authenticated' && (session?.user?.userID || session?.user?.email)) {
       fetchConversations();
     }
   }, [status, session]);
@@ -381,7 +382,10 @@ export default function Messages() {
                   }}
                 >
                   {messages.map((message) => {
-                    const isOwnMessage = message.senderID === session?.user?.userID;
+                    // 判斷是否為自己的消息（考慮 userID 和 email 匹配）
+                    const isOwnMessage = 
+                      (session?.user?.userID && message.senderID === session.user.userID) ||
+                      (session?.user?.email && message.senderEmail === session.user.email);
                     return (
                       <div
                         key={message.id}

@@ -18,30 +18,43 @@ export default async function handler(req, res) {
       const messages = db.collection('messages');
       const users = db.collection('users');
 
-      // 獲取當前用戶的 userID
+      // 獲取當前用戶的 userID（處理相同 email 但不同 provider 的情況）
       let currentUserID = session.user?.userID;
-      if (!currentUserID && session.user?.email) {
-        const currentUser = await users.findOne({ email: session.user.email });
-        if (currentUser && currentUser.userID) {
-          currentUserID = currentUser.userID;
+      let currentUserEmail = session.user?.email;
+
+      // 如果 session 中没有 userID，從數據庫查找（查找所有使用相同 email 的用戶記錄）
+      if (!currentUserID && currentUserEmail) {
+        const dbUsers = await users.find({ email: currentUserEmail }).toArray();
+        if (dbUsers.length > 0) {
+          // 使用第一個找到的 userID（通常相同 email 的用戶會有相同的 userID）
+          currentUserID = dbUsers[0].userID;
         }
       }
 
-      if (!currentUserID) {
+      if (!currentUserID && !currentUserEmail) {
         return res.status(400).json({
           success: false,
           message: '無法識別用戶身份',
         });
       }
 
-      // 獲取所有與當前用戶相關的對話
-      const conversations = await messages
-        .find({
-          $or: [
+      // 獲取所有與當前用戶相關的對話（考慮相同 email 但不同 provider 的情況）
+      // 構建查詢條件：同時檢查 userID 和 email
+      const messageQuery = {
+        $or: [
+          ...(currentUserID ? [
             { senderID: currentUserID },
             { receiverID: currentUserID },
-          ],
-        })
+          ] : []),
+          ...(currentUserEmail ? [
+            { senderEmail: currentUserEmail },
+            { receiverEmail: currentUserEmail },
+          ] : []),
+        ],
+      };
+
+      const conversations = await messages
+        .find(messageQuery)
         .sort({ createdAt: -1 })
         .toArray();
 
@@ -49,9 +62,26 @@ export default async function handler(req, res) {
       const conversationMap = new Map();
 
       for (const message of conversations) {
-        const otherUserID = message.senderID === currentUserID 
-          ? message.receiverID 
-          : message.senderID;
+        // 確定對方用戶ID（考慮 userID 和 email 匹配）
+        let otherUserID = null;
+        if (currentUserID) {
+          if (message.senderID === currentUserID) {
+            otherUserID = message.receiverID;
+          } else if (message.receiverID === currentUserID) {
+            otherUserID = message.senderID;
+          }
+        }
+        
+        // 如果通過 userID 無法確定，嘗試通過 email
+        if (!otherUserID && currentUserEmail) {
+          if (message.senderEmail === currentUserEmail) {
+            otherUserID = message.receiverID;
+          } else if (message.receiverEmail === currentUserEmail) {
+            otherUserID = message.senderID;
+          }
+        }
+
+        if (!otherUserID) continue;
         
         if (!conversationMap.has(otherUserID)) {
           conversationMap.set(otherUserID, {
@@ -65,7 +95,11 @@ export default async function handler(req, res) {
         if (message.createdAt > conversation.lastMessage.createdAt) {
           conversation.lastMessage = message;
         }
-        if (!message.read && message.receiverID === currentUserID) {
+        
+        // 檢查是否為未讀消息（考慮 userID 和 email 匹配）
+        const isReceiver = (currentUserID && message.receiverID === currentUserID) ||
+                          (currentUserEmail && message.receiverEmail === currentUserEmail);
+        if (!message.read && isReceiver) {
           conversation.unreadCount++;
         }
       }
@@ -129,16 +163,20 @@ export default async function handler(req, res) {
       const messages = db.collection('messages');
       const users = db.collection('users');
 
-      // 獲取當前用戶的 userID
+      // 獲取當前用戶的 userID（處理相同 email 但不同 provider 的情況）
       let senderUserID = session.user?.userID;
-      if (!senderUserID && session.user?.email) {
-        const senderUser = await users.findOne({ email: session.user.email });
-        if (senderUser && senderUser.userID) {
-          senderUserID = senderUser.userID;
+      let senderUserEmail = session.user?.email;
+
+      // 如果 session 中没有 userID，從數據庫查找（查找所有使用相同 email 的用戶記錄）
+      if (!senderUserID && senderUserEmail) {
+        const dbUsers = await users.find({ email: senderUserEmail }).toArray();
+        if (dbUsers.length > 0) {
+          // 使用第一個找到的 userID（通常相同 email 的用戶會有相同的 userID）
+          senderUserID = dbUsers[0].userID;
         }
       }
 
-      if (!senderUserID) {
+      if (!senderUserID && !senderUserEmail) {
         return res.status(400).json({
           success: false,
           message: '無法識別用戶身份',
@@ -154,10 +192,12 @@ export default async function handler(req, res) {
         });
       }
 
-      // 創建消息
+      // 創建消息（包含 email 信息以便處理相同 email 但不同 provider 的情況）
       const newMessage = {
         senderID: senderUserID,
+        senderEmail: senderUserEmail || null,
         receiverID: receiverID,
+        receiverEmail: receiver.email || null,
         content: content.trim(),
         read: false,
         createdAt: new Date(),

@@ -26,40 +26,61 @@ export default async function handler(req, res) {
       const messages = db.collection('messages');
       const users = db.collection('users');
 
-      // 獲取當前用戶的 userID
+      // 獲取當前用戶的 userID（處理相同 email 但不同 provider 的情況）
       let currentUserID = session.user?.userID;
-      if (!currentUserID && session.user?.email) {
-        const currentUser = await users.findOne({ email: session.user.email });
-        if (currentUser && currentUser.userID) {
-          currentUserID = currentUser.userID;
+      let currentUserEmail = session.user?.email;
+
+      // 如果 session 中没有 userID，從數據庫查找（查找所有使用相同 email 的用戶記錄）
+      if (!currentUserID && currentUserEmail) {
+        const dbUsers = await users.find({ email: currentUserEmail }).toArray();
+        if (dbUsers.length > 0) {
+          // 使用第一個找到的 userID（通常相同 email 的用戶會有相同的 userID）
+          currentUserID = dbUsers[0].userID;
         }
       }
 
-      if (!currentUserID) {
+      if (!currentUserID && !currentUserEmail) {
         return res.status(400).json({
           success: false,
           message: '無法識別用戶身份',
         });
       }
 
-      // 獲取兩個用戶之間的所有消息
-      const conversationMessages = await messages
-        .find({
-          $or: [
+      // 獲取兩個用戶之間的所有消息（考慮相同 email 但不同 provider 的情況）
+      // 構建查詢條件：同時檢查 userID 和 email
+      const messageQuery = {
+        $or: [
+          ...(currentUserID ? [
             { senderID: currentUserID, receiverID: userID },
             { senderID: userID, receiverID: currentUserID },
-          ],
-        })
+          ] : []),
+          ...(currentUserEmail ? [
+            { senderEmail: currentUserEmail, receiverID: userID },
+            { senderID: userID, receiverEmail: currentUserEmail },
+          ] : []),
+        ],
+      };
+
+      const conversationMessages = await messages
+        .find(messageQuery)
         .sort({ createdAt: 1 }) // 按時間順序排列
         .toArray();
 
-      // 標記消息為已讀
+      // 標記消息為已讀（考慮 userID 和 email 匹配）
+      const readQuery = {
+        read: false,
+        $or: [
+          ...(currentUserID ? [
+            { senderID: userID, receiverID: currentUserID },
+          ] : []),
+          ...(currentUserEmail ? [
+            { senderID: userID, receiverEmail: currentUserEmail },
+          ] : []),
+        ],
+      };
+
       await messages.updateMany(
-        {
-          senderID: userID,
-          receiverID: currentUserID,
-          read: false,
-        },
+        readQuery,
         {
           $set: { read: true },
         }
