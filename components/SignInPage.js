@@ -4,9 +4,8 @@ export default function SignInPage({
   onRegisterStep1, // 选择 Provider
   onRegisterStep2, // 输入 userID 和名称
   onLoginWithUserID, // 通过 userID 登录
-  registeredUsers, // 已注册用户列表（搜索结果）
+  registeredUsers, // 已注册用户列表
   loadingUsers,
-  onSearchUser, // 搜索用户
   selectedProvider,
   setSelectedProvider,
   userID,
@@ -18,21 +17,11 @@ export default function SignInPage({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 搜索用户（使用防抖）
-  useEffect(() => {
-    if (registerStep === 'login') {
-      const timeoutId = setTimeout(() => {
-        if (onSearchUser) {
-          onSearchUser(searchTerm);
-        }
-      }, 300); // 300ms 防抖
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [searchTerm, registerStep, onSearchUser]);
-
-  // 使用搜索結果作為過濾後的用戶列表
-  const filteredUsers = registeredUsers || [];
+  // 过滤已注册用户
+  const filteredUsers = registeredUsers?.filter((user) =>
+    user.userID.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <div className="auth-page">
@@ -158,23 +147,15 @@ export default function SignInPage({
           {registerStep === 'login' && (
             <div className="login-flow">
               <h2 style={{ fontSize: '20px', marginBottom: '24px', textAlign: 'center' }}>
-                登入您的帳號
+                選擇您的帳號
               </h2>
               
               <div className="form-group" style={{ marginBottom: '24px' }}>
                 <input
                   type="text"
-                  placeholder="搜尋用戶ID 或名稱以登入..."
+                  placeholder="搜尋用戶ID 或名稱..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchTerm.trim()) {
-                      // 如果只有一個結果，直接登入
-                      if (filteredUsers.length === 1) {
-                        onLoginWithUserID && onLoginWithUserID(filteredUsers[0].userID);
-                      }
-                    }
-                  }}
                   style={{
                     width: '100%',
                     padding: '12px 16px',
@@ -185,23 +166,13 @@ export default function SignInPage({
                     fontSize: '15px',
                   }}
                 />
-                <small className="form-hint" style={{ marginTop: '8px', display: 'block', color: '#71767b' }}>
-                  輸入用戶ID或名稱進行搜索，然後點擊用戶登入
-                </small>
               </div>
 
               {loadingUsers ? (
-                <div style={{ textAlign: 'center', color: '#71767b' }}>搜索中...</div>
-              ) : !searchTerm.trim() ? (
-                <div style={{ textAlign: 'center', color: '#71767b', padding: '40px 0' }}>
-                  <p>請在上方搜索框中輸入用戶ID或名稱</p>
-                  <p style={{ fontSize: '14px', marginTop: '8px' }}>
-                    為了保護隱私，我們不會顯示所有用戶列表
-                  </p>
-                </div>
+                <div style={{ textAlign: 'center', color: '#71767b' }}>載入中...</div>
               ) : filteredUsers.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#71767b', padding: '40px 0' }}>
-                  找不到匹配的用戶
+                <div style={{ textAlign: 'center', color: '#71767b' }}>
+                  {searchTerm ? '找不到匹配的用戶' : '尚無已註冊的用戶'}
                 </div>
               ) : (
                 <div className="users-list">
