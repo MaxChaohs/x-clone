@@ -220,37 +220,81 @@ export default function Messages() {
                 zIndex: 10,
               }}
             >
-              <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', margin: '0 0 12px 0' }}>
-                Messages
-              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+                  Messages
+                </h1>
+                {/* 新對話按鈕 */}
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    // 聚焦搜索框
+                    const searchInput = document.querySelector('input[placeholder="搜索用戶..."]');
+                    if (searchInput) {
+                      searchInput.focus();
+                    }
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#1d9bf0',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '24px',
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1a8cd8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1d9bf0';
+                  }}
+                  title="開始新對話"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <line x1="12" y1="8" x2="12" y2="16" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                  新對話
+                </button>
+              </div>
               {/* 搜索框 */}
-              <input
-                type="text"
-                placeholder="搜索用戶..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  handleSearchUsers(e.target.value);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  backgroundColor: '#000000',
-                  border: '1px solid #2f3336',
-                  borderRadius: '24px',
-                  color: '#ffffff',
-                  fontSize: '15px',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  e.target.borderColor = '#1d9bf0';
-                }}
-                onBlur={(e) => {
-                  e.target.borderColor = '#2f3336';
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="搜索用戶以開始新對話..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    handleSearchUsers(e.target.value);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    backgroundColor: '#000000',
+                    border: '1px solid #2f3336',
+                    borderRadius: '24px',
+                    color: '#ffffff',
+                    fontSize: '15px',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => {
+                    e.target.borderColor = '#1d9bf0';
+                  }}
+                  onBlur={(e) => {
+                    e.target.borderColor = '#2f3336';
+                  }}
+                />
+              </div>
               {/* 搜索結果 */}
-              {searchQuery.trim() && searchResults.length > 0 && (
+              {searchQuery.trim() && (
                 <div
                   style={{
                     position: 'absolute',
@@ -264,67 +308,78 @@ export default function Messages() {
                     maxHeight: '300px',
                     overflowY: 'auto',
                     zIndex: 1000,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
                   }}
                 >
-                  {searchResults.map((user) => (
-                    <div
-                      key={user.userID}
-                      onClick={() => handleStartConversation(user.userID)}
-                      style={{
-                        padding: '12px 16px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        borderBottom: '1px solid #2f3336',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#181818';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      {user.image ? (
-                        <img
-                          src={user.image}
-                          alt={user.name}
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            backgroundColor: '#1d9bf0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#ffffff',
-                            fontSize: '18px',
-                            fontWeight: '700',
-                          }}
-                        >
-                          {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                        </div>
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
-                          {user.name}
-                        </div>
-                        <div style={{ fontSize: '13px', color: '#71767b' }}>
-                          @{user.userID}
+                  {searching ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#71767b' }}>
+                      <p>搜索中...</p>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((user) => (
+                      <div
+                        key={user.userID}
+                        onClick={() => handleStartConversation(user.userID)}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          borderBottom: '1px solid #2f3336',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#181818';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        {user.image ? (
+                          <img
+                            src={user.image}
+                            alt={user.name}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '50%',
+                              backgroundColor: '#1d9bf0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#ffffff',
+                              fontSize: '18px',
+                              fontWeight: '700',
+                            }}
+                          >
+                            {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                            {user.name}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#71767b' }}>
+                            @{user.userID}
+                          </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#71767b' }}>
+                      <p>未找到用戶</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -610,12 +665,17 @@ export default function Messages() {
                 style={{
                   flex: 1,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#71767b',
+                  padding: '40px',
                 }}
               >
-                <p>選擇一個對話開始聊天</p>
+                <p style={{ marginBottom: '24px', fontSize: '20px' }}>選擇一個對話開始聊天</p>
+                <p style={{ marginBottom: '24px', fontSize: '15px', color: '#71767b' }}>
+                  或使用上方搜索框搜索用戶開始新對話
+                </p>
               </div>
             )}
           </div>
