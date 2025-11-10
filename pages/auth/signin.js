@@ -98,7 +98,7 @@ export default function SignIn() {
   };
 
   // 載入本地存儲的帳號列表 - 使用 useCallback 確保函數引用穩定
-  const loadLocalUsers = useCallback(() => {
+  const loadLocalUsers = useCallback(async () => {
     try {
       // 確保在瀏覽器環境中
       if (typeof window === 'undefined') {
@@ -107,18 +107,69 @@ export default function SignIn() {
       }
 
       const localUsersJson = localStorage.getItem('vas_logged_in_users');
-      if (localUsersJson) {
-        const localUsers = JSON.parse(localUsersJson);
-        // 按最後登入時間排序（最新的在前）
-        localUsers.sort((a, b) => {
-          const timeA = new Date(a.lastLoginAt || 0).getTime();
-          const timeB = new Date(b.lastLoginAt || 0).getTime();
-          return timeB - timeA;
-        });
-        setRegisteredUsers(localUsers);
-      } else {
+      if (!localUsersJson) {
         setRegisteredUsers([]);
+        return;
       }
+
+      const localUsers = JSON.parse(localUsersJson);
+      
+      // 如果沒有本地用戶，直接返回
+      if (localUsers.length === 0) {
+        setRegisteredUsers([]);
+        return;
+      }
+
+      // 驗證本地用戶是否仍然存在於數據庫中
+      try {
+        const userIDs = localUsers.map(u => u.userID).filter(Boolean);
+        
+        if (userIDs.length > 0) {
+          const response = await fetch('/api/users/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIDs }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              const existingUserIDs = new Set(data.existingUserIDs);
+              
+              // 過濾出仍然存在的用戶
+              const validUsers = localUsers.filter(u => 
+                u.userID && existingUserIDs.has(u.userID)
+              );
+
+              // 更新 localStorage，移除已刪除的用戶
+              if (validUsers.length !== localUsers.length) {
+                localStorage.setItem('vas_logged_in_users', JSON.stringify(validUsers));
+              }
+
+              // 按最後登入時間排序（最新的在前）
+              validUsers.sort((a, b) => {
+                const timeA = new Date(a.lastLoginAt || 0).getTime();
+                const timeB = new Date(b.lastLoginAt || 0).getTime();
+                return timeB - timeA;
+              });
+              
+              setRegisteredUsers(validUsers);
+              return;
+            }
+          }
+        }
+      } catch (verifyError) {
+        console.error('Error verifying users:', verifyError);
+        // 如果驗證失敗，仍然顯示本地用戶（避免網絡問題導致無法顯示）
+      }
+
+      // 如果驗證失敗或沒有 userID，按最後登入時間排序（最新的在前）
+      localUsers.sort((a, b) => {
+        const timeA = new Date(a.lastLoginAt || 0).getTime();
+        const timeB = new Date(b.lastLoginAt || 0).getTime();
+        return timeB - timeA;
+      });
+      setRegisteredUsers(localUsers);
     } catch (error) {
       console.error('Error loading local users:', error);
       setRegisteredUsers([]);
@@ -170,9 +221,42 @@ export default function SignIn() {
             const localUsersJson = localStorage.getItem('vas_logged_in_users');
             const localUsers = localUsersJson ? JSON.parse(localUsersJson) : [];
             
+            // 驗證本地用戶是否仍然存在
+            let validLocalUsers = localUsers;
+            if (localUsers.length > 0) {
+              try {
+                const userIDs = localUsers.map(u => u.userID).filter(Boolean);
+                if (userIDs.length > 0) {
+                  const verifyResponse = await fetch('/api/users/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userIDs }),
+                  });
+                  
+                  if (verifyResponse.ok) {
+                    const verifyData = await verifyResponse.json();
+                    if (verifyData.success) {
+                      const existingUserIDs = new Set(verifyData.existingUserIDs);
+                      validLocalUsers = localUsers.filter(u => 
+                        u.userID && existingUserIDs.has(u.userID)
+                      );
+                      
+                      // 更新 localStorage，移除已刪除的用戶
+                      if (validLocalUsers.length !== localUsers.length) {
+                        localStorage.setItem('vas_logged_in_users', JSON.stringify(validLocalUsers));
+                      }
+                    }
+                  }
+                }
+              } catch (verifyError) {
+                console.error('Error verifying local users in search:', verifyError);
+                // 如果驗證失敗，仍然使用本地用戶
+              }
+            }
+            
             // 合併並去重（基於 userID）
-            const allUsers = [...localUsers];
-            const localUserIDs = new Set(localUsers.map(u => u.userID));
+            const allUsers = [...validLocalUsers];
+            const localUserIDs = new Set(validLocalUsers.map(u => u.userID));
             
             data.users.forEach(user => {
               if (!localUserIDs.has(user.userID)) {
