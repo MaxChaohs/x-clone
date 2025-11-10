@@ -63,13 +63,28 @@ export default async function handler(req, res) {
       }
 
       // 檢查每個貼文是否已被當前用戶轉發
+      // 如果沒有 currentUserID，也嘗試通過 email 查找所有可能的 userID
+      let allPossibleUserIDs = [];
+      if (currentUserID) {
+        allPossibleUserIDs.push(currentUserID);
+      }
+      if (session.user?.email) {
+        const usersWithSameEmail = await users.find({ email: session.user.email }).toArray();
+        usersWithSameEmail.forEach(user => {
+          if (user.userID && !allPossibleUserIDs.includes(user.userID)) {
+            allPossibleUserIDs.push(user.userID);
+          }
+        });
+      }
+
       const postsWithRepostStatus = await Promise.all(
         allPosts.map(async (post) => {
           let isReposted = false;
-          if (currentUserID) {
+          if (allPossibleUserIDs.length > 0) {
+            // 檢查是否有任何可能的 userID 已轉發此貼文
             const repostedPost = await posts.findOne({
               'repost.originalPostId': post._id.toString(),
-              'author.userID': currentUserID,
+              'author.userID': { $in: allPossibleUserIDs },
             });
             isReposted = !!repostedPost;
           }

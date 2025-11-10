@@ -44,11 +44,39 @@ export default async function handler(req, res) {
       });
     }
 
-    // 检查是否已经转发过
-    const existingRepost = await posts.findOne({
+    // 确保 userID 存在（先獲取 userID，再檢查是否已轉發）
+    let authorUserID = session.user?.userID;
+    let authorEmail = session.user?.email;
+
+    // 如果 session 中没有 userID，从数据库查找
+    if (!authorUserID && session.user?.email) {
+      const dbUser = await users.findOne({ email: session.user.email });
+      if (dbUser && dbUser.userID) {
+        authorUserID = dbUser.userID;
+      }
+    }
+
+    if (!authorUserID) {
+      return res.status(400).json({
+        success: false,
+        message: '無法識別用戶身份',
+      });
+    }
+
+    // 檢查是否已經轉發過（考慮使用不同 provider 但同一個 email 的情況）
+    // 先通過 userID 檢查
+    let existingRepost = await posts.findOne({
       'repost.originalPostId': postId,
-      'author.userID': session.user?.userID,
+      'author.userID': authorUserID,
     });
+
+    // 如果沒有找到，且有用 email，也通過 email 檢查（處理不同 provider 但同一個 email 的情況）
+    if (!existingRepost && authorEmail) {
+      existingRepost = await posts.findOne({
+        'repost.originalPostId': postId,
+        'author.email': authorEmail,
+      });
+    }
 
     if (existingRepost) {
       // 如果已经转发过，取消转发（删除转发）
@@ -80,24 +108,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 确保 userID 存在
-    let authorUserID = session.user?.userID;
-    let authorEmail = session.user?.email;
-
-    // 如果 session 中没有 userID，从数据库查找
-    if (!authorUserID && session.user?.email) {
-      const dbUser = await users.findOne({ email: session.user.email });
-      if (dbUser && dbUser.userID) {
-        authorUserID = dbUser.userID;
-      }
-    }
-
-    if (!authorUserID) {
-      return res.status(400).json({
-        success: false,
-        message: '無法識別用戶身份',
-      });
-    }
+    // authorUserID 已經在上面獲取了，這裡不需要重複獲取
 
     // 创建转发文章
     const repost = {

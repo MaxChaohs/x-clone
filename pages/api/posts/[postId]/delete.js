@@ -70,23 +70,22 @@ export default async function handler(req, res) {
     const postAuthorEmail = post.author?.email;
     const postAuthorName = post.author?.name;
     
-    // 通过 userID 匹配
+    // 通过 userID 匹配（優先檢查）
     const isAuthorByUserID = postAuthorUserID && 
                              currentUserID &&
-                             (postAuthorUserID === currentUserID || String(postAuthorUserID) === String(currentUserID));
+                             (String(postAuthorUserID).toLowerCase() === String(currentUserID).toLowerCase());
     
-    // 通过 email 匹配（当 userID 不存在时）
-    const isAuthorByEmail = !postAuthorUserID && 
-                            postAuthorEmail && 
+    // 通过 email 匹配（即使 userID 存在也檢查，因為可能使用不同 provider 但同一個 email）
+    const isAuthorByEmail = postAuthorEmail && 
                             currentUserEmail &&
-                            postAuthorEmail === currentUserEmail;
+                            String(postAuthorEmail).toLowerCase() === String(currentUserEmail).toLowerCase();
     
-    // 通过 name 匹配（当 userID 和 email 都不存在时，作为后备方案）
-    const isAuthorByName = !postAuthorUserID && 
-                          !postAuthorEmail && 
+    // 通过 name 匹配（當 userID 和 email 都不匹配時，作為後備方案）
+    const isAuthorByName = !isAuthorByUserID && 
+                          !isAuthorByEmail &&
                           postAuthorName && 
                           currentUserName &&
-                          postAuthorName === currentUserName;
+                          String(postAuthorName).toLowerCase() === String(currentUserName).toLowerCase();
     
     const isAuthor = isAuthorByUserID || isAuthorByEmail || isAuthorByName;
     
