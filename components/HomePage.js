@@ -432,8 +432,21 @@ export default function HomePage() {
 
       const data = await response.json();
       if (data.success) {
-        // 刷新帖子列表
-        fetchPosts();
+        // 更新本地狀態，而不是重新獲取所有貼文
+        setPosts((prev) =>
+          prev.map((post) => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                isReposted: data.reposted,
+                repostCount: data.reposted
+                  ? (post.repostCount || 0) + 1
+                  : Math.max(0, (post.repostCount || 0) - 1),
+              };
+            }
+            return post;
+          })
+        );
       } else {
         alert(data.message || '轉發失敗');
       }
@@ -1342,7 +1355,7 @@ export default function HomePage() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: post.repostCount > 0 ? '#00ba7c' : '#71767b',
+                      color: post.isReposted ? '#00ba7c' : '#71767b',
                       cursor: 'pointer',
                       padding: '0',
                       display: 'flex',
@@ -1356,11 +1369,18 @@ export default function HomePage() {
                       e.currentTarget.style.color = '#00ba7c';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = post.repostCount > 0 ? '#00ba7c' : '#71767b';
+                      e.currentTarget.style.color = post.isReposted ? '#00ba7c' : '#71767b';
                     }}
-                    title="轉推"
+                    title={post.isReposted ? '取消轉發' : '轉發'}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg 
+                      width="18" 
+                      height="18" 
+                      viewBox="0 0 24 24" 
+                      fill={post.isReposted ? 'currentColor' : 'none'} 
+                      stroke="currentColor" 
+                      strokeWidth="2"
+                    >
                       <path d="M17 1l4 4-4 4" />
                       <path d="M3 11V9a4 4 0 0 1 4-4h14" />
                       <path d="M7 23l-4-4 4-4" />

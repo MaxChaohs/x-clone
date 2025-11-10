@@ -53,18 +53,44 @@ export default async function handler(req, res) {
         .limit(50)
         .toArray();
 
+      // 獲取當前用戶的 userID
+      let currentUserID = session.user?.userID;
+      if (!currentUserID && session.user?.email) {
+        const currentUser = await users.findOne({ email: session.user.email });
+        if (currentUser && currentUser.userID) {
+          currentUserID = currentUser.userID;
+        }
+      }
+
+      // 檢查每個貼文是否已被當前用戶轉發
+      const postsWithRepostStatus = await Promise.all(
+        allPosts.map(async (post) => {
+          let isReposted = false;
+          if (currentUserID) {
+            const repostedPost = await posts.findOne({
+              'repost.originalPostId': post._id.toString(),
+              'author.userID': currentUserID,
+            });
+            isReposted = !!repostedPost;
+          }
+
+          return {
+            id: post._id.toString(),
+            content: post.content,
+            author: post.author,
+            likes: post.likes || [],
+            comments: post.comments || [],
+            repostCount: post.repostCount || 0,
+            repost: post.repost || null,
+            isReposted: isReposted,
+            createdAt: post.createdAt,
+          };
+        })
+      );
+
       return res.status(200).json({
         success: true,
-        posts: allPosts.map((post) => ({
-          id: post._id.toString(),
-          content: post.content,
-          author: post.author,
-          likes: post.likes || [],
-          comments: post.comments || [],
-          repostCount: post.repostCount || 0,
-          repost: post.repost || null,
-          createdAt: post.createdAt,
-        })),
+        posts: postsWithRepostStatus,
       });
     } catch (error) {
       console.error('Get posts error:', error);

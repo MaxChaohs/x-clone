@@ -320,6 +320,13 @@ export default function UserProfile() {
     }
   };
 
+  // 當 session 變化時，如果是自己的頁面，重新獲取用戶信息以更新 followers 數量
+  useEffect(() => {
+    if (isOwnProfile && userID && status === 'authenticated') {
+      fetchUserProfile();
+    }
+  }, [status, isOwnProfile, userID]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleLike = async (postId) => {
     try {
       const response = await fetch(`/api/posts/${postId}/like`, {
