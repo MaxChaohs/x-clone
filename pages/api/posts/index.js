@@ -99,6 +99,17 @@ export default async function handler(req, res) {
             isReposted = !!repostedPost;
           }
 
+          // 檢查是否已加入書籤
+          let isBookmarked = false;
+          if (allPossibleUserIDs.length > 0 || currentUserEmail) {
+            const bookmarks = post.bookmarks || [];
+            isBookmarked = bookmarks.some(
+              (bookmark) =>
+                (allPossibleUserIDs.length > 0 && bookmark.userID && allPossibleUserIDs.includes(bookmark.userID)) ||
+                (currentUserEmail && bookmark.email && String(bookmark.email).toLowerCase() === String(currentUserEmail).toLowerCase())
+            );
+          }
+
           return {
             id: post._id.toString(),
             content: post.content,
@@ -108,6 +119,7 @@ export default async function handler(req, res) {
             repostCount: post.repostCount || 0,
             repost: post.repost || null,
             isReposted: isReposted,
+            isBookmarked: isBookmarked,
             createdAt: post.createdAt,
           };
         })

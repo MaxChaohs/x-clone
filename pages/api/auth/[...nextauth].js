@@ -269,6 +269,82 @@ export default NextAuth({
         return true;
       }
 
+      // 檢查是否有相同 email 但不同 provider 的用戶（處理相同 email 但不同 provider 的情況）
+      // 如果找到，使用現有用戶的 userID，但創建新的 provider 記錄
+      if (user.email) {
+        const userWithSameEmail = await users.findOne({
+          email: user.email,
+          oauthCompleted: true,
+        });
+
+        if (userWithSameEmail) {
+          // 找到相同 email 的用戶，檢查是否已有該 provider 的記錄
+          const existingProviderUser = await users.findOne({
+            userID: userWithSameEmail.userID,
+            provider: account.provider,
+            oauthCompleted: true,
+          });
+
+          if (!existingProviderUser) {
+            // 如果沒有該 provider 的記錄，創建一個新的記錄（使用相同的 userID）
+            console.log('找到相同 email 的用戶，創建新的 provider 記錄:', {
+              userID: userWithSameEmail.userID,
+              email: user.email,
+              provider: account.provider,
+            });
+
+            await users.insertOne({
+              userID: userWithSameEmail.userID, // 使用相同的 userID
+              name: user.name || userWithSameEmail.name || user.email?.split('@')[0],
+              email: user.email,
+              provider: account.provider,
+              providerId: account.providerAccountId,
+              image: user.image || userWithSameEmail.image || profile?.picture,
+              oauthCompleted: true,
+              createdAt: new Date(),
+            });
+
+            // 確保 NextAuth adapter 能夠找到賬戶記錄
+            const accounts = db.collection('accounts');
+            const existingAccount = await accounts.findOne({
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            });
+
+            if (!existingAccount) {
+              // 獲取新創建的用戶記錄的 _id
+              const newUser = await users.findOne({
+                userID: userWithSameEmail.userID,
+                provider: account.provider,
+                oauthCompleted: true,
+              });
+
+              if (newUser) {
+                await accounts.insertOne({
+                  userId: newUser._id,
+                  type: 'oauth',
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  refresh_token: account.refresh_token,
+                  access_token: account.access_token,
+                  expires_at: account.expires_at,
+                  token_type: account.token_type,
+                  scope: account.scope,
+                  id_token: account.id_token,
+                  session_state: account.session_state,
+                });
+              }
+            }
+
+            return true;
+          } else {
+            // 如果已有該 provider 的記錄，直接登入
+            console.log('找到相同 email 和 provider 的用戶，直接登入');
+            return true;
+          }
+        }
+      }
+
       // 查找該 Provider 下所有未完成 OAuth 的用戶記錄（不限制時間）
       // 優先查找最近創建的，如果沒有則查找所有未完成的
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);

@@ -29,8 +29,16 @@ export default function UserProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadingFollow, setLoadingFollow] = useState(false);
   const [checkingFollow, setCheckingFollow] = useState(false);
+  const [expandedComments, setExpandedComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [submittingComments, setSubmittingComments] = useState({});
+  const [bookmarkedPosts, setBookmarkedPosts] = useState([]);
+  const [loadingBookmarkedPosts, setLoadingBookmarkedPosts] = useState(false);
 
-  const isOwnProfile = session?.user?.userID === userID;
+  // 判斷是否為自己的頁面（考慮相同 email 但不同 provider 的情況）
+  const isOwnProfile = 
+    (session?.user?.userID && String(session.user.userID).toLowerCase() === String(userID).toLowerCase()) ||
+    (session?.user?.email && user?.email && String(session.user.email).toLowerCase() === String(user.email).toLowerCase());
 
   useEffect(() => {
     if (userID) {
@@ -55,6 +63,11 @@ export default function UserProfile() {
     // 当切换到"喜歡的內容"标签时，如果是自己的资料，加载点赞的帖子
     if (activeTab === 'likes' && isOwnProfile && likedPosts.length === 0 && !loadingLikedPosts) {
       fetchLikedPosts();
+    }
+    
+    // 当切换到"精選內容"标签时，如果是自己的资料，加载书签的帖子
+    if (activeTab === 'highlights' && isOwnProfile && bookmarkedPosts.length === 0 && !loadingBookmarkedPosts) {
+      fetchBookmarkedPosts();
     }
     
     // 如果查看他人页面，且切换到非 posts 或 replies 的标签，自动切换回 posts
@@ -121,17 +134,22 @@ export default function UserProfile() {
       const response = await fetch('/api/posts');
       const data = await response.json();
       if (data.success) {
-        // 只过滤出该用户的帖子（严格匹配 userID）
+        // 只过滤出该用户的帖子（考慮相同 email 但不同 provider 的情況）
         const userPosts = data.posts.filter((post) => {
           const postAuthorUserID = post.author?.userID;
+          const postAuthorEmail = post.author?.email;
           
-          // 如果没有 author.userID，跳过
-          if (!postAuthorUserID) {
-            return false;
+          // 通過 userID 匹配
+          if (postAuthorUserID && String(postAuthorUserID).toLowerCase() === String(userID).toLowerCase()) {
+            return true;
           }
           
-          // 严格匹配：只显示 author.userID 完全等于当前 userID 的帖子
-          return String(postAuthorUserID).toLowerCase() === String(userID).toLowerCase();
+          // 通過 email 匹配（如果 userID 不匹配，但 email 匹配，也顯示）
+          if (user?.email && postAuthorEmail && String(postAuthorEmail).toLowerCase() === String(user.email).toLowerCase()) {
+            return true;
+          }
+          
+          return false;
         });
         
         setPosts(userPosts);
@@ -389,6 +407,130 @@ export default function UserProfile() {
       }
     } catch (error) {
       console.error('Error liking post:', error);
+    }
+  };
+
+  // 轉發功能
+  const handleRepost = async (postId) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/repost`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // 更新本地狀態
+        setPosts((prev) =>
+          prev.map((post) => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                isReposted: data.reposted,
+                repostCount: data.reposted
+                  ? (post.repostCount || 0) + 1
+                  : Math.max(0, (post.repostCount || 0) - 1),
+              };
+            }
+            return post;
+          })
+        );
+      } else {
+        alert(data.message || '轉發失敗');
+      }
+    } catch (error) {
+      console.error('Error reposting:', error);
+      alert('轉發失敗，請稍後再試');
+    }
+  };
+
+  // 切換留言顯示
+  const handleToggleComments = (postId) => {
+    setExpandedComments((prev) => ({
+      ...prev,
+      [postId]: !prev[postId],
+    }));
+  };
+
+  // 提交留言
+  const handleCommentSubmit = async (e, postId) => {
+    e.preventDefault();
+    const content = commentInputs[postId]?.trim();
+    if (!content) return;
+
+    setSubmittingComments((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const response = await fetch(`/api/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setCommentInputs((prev) => ({ ...prev, [postId]: '' }));
+        // 刷新貼文列表以獲取最新留言
+        fetchUserPosts();
+      } else {
+        alert(data.message || '留言失敗');
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error);
+      alert('留言失敗，請稍後再試');
+    } finally {
+      setSubmittingComments((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  // 獲取書籤貼文
+  const fetchBookmarkedPosts = async () => {
+    if (!isOwnProfile || !session?.user?.userID) return;
+    
+    setLoadingBookmarkedPosts(true);
+    try {
+      const response = await fetch('/api/posts/bookmarks');
+      const data = await response.json();
+      if (data.success) {
+        setBookmarkedPosts(data.posts || []);
+      }
+    } catch (error) {
+      console.error('Error fetching bookmarked posts:', error);
+    } finally {
+      setLoadingBookmarkedPosts(false);
+    }
+  };
+
+  // 書籤功能
+  const handleBookmark = async (postId) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/bookmark`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // 更新本地狀態
+        setPosts((prev) =>
+          prev.map((post) => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                isBookmarked: data.bookmarked,
+              };
+            }
+            return post;
+          })
+        );
+
+        // 如果是精選內容標籤，刷新書籤列表
+        if (activeTab === 'highlights') {
+          fetchBookmarkedPosts();
+        }
+      } else {
+        alert(data.message || '書籤操作失敗');
+      }
+    } catch (error) {
+      console.error('Error bookmarking post:', error);
+      alert('書籤操作失敗，請稍後再試');
     }
   };
 
@@ -865,6 +1007,7 @@ export default function UserProfile() {
                           >
                             {/* 评论 */}
                             <button
+                              onClick={() => handleToggleComments(post.id)}
                               style={{
                                 background: 'none',
                                 border: 'none',
@@ -890,14 +1033,18 @@ export default function UserProfile() {
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                               </svg>
+                              {post.comments && post.comments.length > 0 && (
+                                <span style={{ fontSize: '13px' }}>{post.comments.length}</span>
+                              )}
                             </button>
 
                             {/* 转发 */}
                             <button
+                              onClick={() => handleRepost(post.id)}
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: '#71767b',
+                                color: post.isReposted ? '#00ba7c' : '#71767b',
                                 cursor: 'pointer',
                                 padding: '8px',
                                 borderRadius: '50%',
@@ -911,17 +1058,27 @@ export default function UserProfile() {
                                 e.currentTarget.style.backgroundColor = '#00ba7c10';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#71767b';
+                                e.currentTarget.style.color = post.isReposted ? '#00ba7c' : '#71767b';
                                 e.currentTarget.style.backgroundColor = 'transparent';
                               }}
-                              title="轉推"
+                              title={post.isReposted ? '取消轉發' : '轉發'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg 
+                                width="18" 
+                                height="18" 
+                                viewBox="0 0 24 24" 
+                                fill={post.isReposted ? 'currentColor' : 'none'} 
+                                stroke="currentColor" 
+                                strokeWidth="2"
+                              >
                                 <path d="M17 1l4 4-4 4" />
                                 <path d="M3 11V9a4 4 0 0 1 4-4h14" />
                                 <path d="M7 23l-4-4 4-4" />
                                 <path d="M21 13v2a4 4 0 0 1-4 4H3" />
                               </svg>
+                              {post.repostCount > 0 && (
+                                <span style={{ fontSize: '13px' }}>{post.repostCount}</span>
+                              )}
                             </button>
 
                             {/* 点赞 */}
@@ -1003,10 +1160,11 @@ export default function UserProfile() {
 
                             {/* 收藏 */}
                             <button
+                              onClick={() => handleBookmark(post.id)}
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: '#71767b',
+                                color: post.isBookmarked ? '#1d9bf0' : '#71767b',
                                 cursor: 'pointer',
                                 padding: '8px',
                                 borderRadius: '50%',
@@ -1020,12 +1178,19 @@ export default function UserProfile() {
                                 e.currentTarget.style.backgroundColor = '#1d9bf010';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#71767b';
+                                e.currentTarget.style.color = post.isBookmarked ? '#1d9bf0' : '#71767b';
                                 e.currentTarget.style.backgroundColor = 'transparent';
                               }}
-                              title="書籤"
+                              title={post.isBookmarked ? '移除書籤' : '加入書籤'}
                             >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg 
+                                width="18" 
+                                height="18" 
+                                viewBox="0 0 24 24" 
+                                fill={post.isBookmarked ? 'currentColor' : 'none'} 
+                                stroke="currentColor" 
+                                strokeWidth="2"
+                              >
                                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                               </svg>
                             </button>
@@ -1130,6 +1295,204 @@ export default function UserProfile() {
                         </div>
                       </div>
                     )}
+
+                    {/* 留言区域 */}
+                    {expandedComments[post.id] && (
+                      <div
+                        style={{
+                          marginTop: '16px',
+                          paddingTop: '16px',
+                          borderTop: '1px solid #2f3336',
+                        }}
+                      >
+                        {/* 留言列表 */}
+                        {post.comments && post.comments.length > 0 && (
+                          <div style={{ marginBottom: '16px' }}>
+                            {post.comments.map((comment) => (
+                              <div
+                                key={comment.id || comment._id}
+                                style={{
+                                  display: 'flex',
+                                  gap: '12px',
+                                  padding: '12px 0',
+                                  borderBottom: '1px solid #2f3336',
+                                }}
+                              >
+                                {/* 留言者头像 */}
+                                {comment.author?.userID ? (
+                                  <Link href={`/${comment.author.userID}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                                    {comment.author?.image ? (
+                                      <img
+                                        src={comment.author.image}
+                                        alt={comment.author.name}
+                                        style={{
+                                          width: '32px',
+                                          height: '32px',
+                                          borderRadius: '50%',
+                                          objectFit: 'cover',
+                                          cursor: 'pointer',
+                                        }}
+                                      />
+                                    ) : (
+                                      <div
+                                        style={{
+                                          width: '32px',
+                                          height: '32px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#1d9bf0',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#ffffff',
+                                          fontSize: '14px',
+                                          fontWeight: '700',
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        {comment.author?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                      </div>
+                                    )}
+                                  </Link>
+                                ) : (
+                                  <div style={{ flexShrink: 0 }}>
+                                    {comment.author?.image ? (
+                                      <img
+                                        src={comment.author.image}
+                                        alt={comment.author.name}
+                                        style={{
+                                          width: '32px',
+                                          height: '32px',
+                                          borderRadius: '50%',
+                                          objectFit: 'cover',
+                                        }}
+                                      />
+                                    ) : (
+                                      <div
+                                        style={{
+                                          width: '32px',
+                                          height: '32px',
+                                          borderRadius: '50%',
+                                          backgroundColor: '#1d9bf0',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#ffffff',
+                                          fontSize: '14px',
+                                          fontWeight: '700',
+                                        }}
+                                      >
+                                        {comment.author?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* 留言内容 */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                                    {comment.author?.userID ? (
+                                      <Link href={`/${comment.author.userID}`} style={{ textDecoration: 'none' }}>
+                                        <strong style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginRight: '4px', cursor: 'pointer' }}>
+                                          {comment.author?.name || 'Unknown'}
+                                        </strong>
+                                        <span style={{ color: '#71767b', fontSize: '15px', cursor: 'pointer' }}>
+                                          @{comment.author.userID}
+                                        </span>
+                                      </Link>
+                                    ) : (
+                                      <>
+                                        <strong style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginRight: '4px' }}>
+                                          {comment.author?.name || 'Unknown'}
+                                        </strong>
+                                        {comment.author?.userID && (
+                                          <span style={{ color: '#71767b', fontSize: '15px' }}>
+                                            @{comment.author.userID}
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                    {comment.createdAt && (
+                                      <>
+                                        <span style={{ color: '#71767b', fontSize: '15px', margin: '0 4px' }}>·</span>
+                                        <span style={{ color: '#71767b', fontSize: '15px' }}>
+                                          {new Date(comment.createdAt).toLocaleDateString('zh-TW', {
+                                            month: 'short',
+                                            day: 'numeric',
+                                          })}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <p
+                                    style={{
+                                      fontSize: '15px',
+                                      color: '#ffffff',
+                                      margin: 0,
+                                      whiteSpace: 'pre-wrap',
+                                      wordBreak: 'break-word',
+                                    }}
+                                  >
+                                    {comment.content}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 添加留言表单 */}
+                        {session && (
+                          <form
+                            onSubmit={(e) => handleCommentSubmit(e, post.id)}
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              alignItems: 'flex-start',
+                            }}
+                          >
+                            <input
+                              type="text"
+                              placeholder="寫下你的留言..."
+                              value={commentInputs[post.id] || ''}
+                              onChange={(e) =>
+                                setCommentInputs((prev) => ({
+                                  ...prev,
+                                  [post.id]: e.target.value,
+                                }))
+                              }
+                              style={{
+                                flex: 1,
+                                padding: '12px 16px',
+                                backgroundColor: '#000000',
+                                border: '1px solid #2f3336',
+                                borderRadius: '24px',
+                                color: '#ffffff',
+                                fontSize: '15px',
+                                outline: 'none',
+                              }}
+                              disabled={submittingComments[post.id]}
+                            />
+                            <button
+                              type="submit"
+                              disabled={submittingComments[post.id] || !(commentInputs[post.id]?.trim())}
+                              style={{
+                                padding: '12px 24px',
+                                backgroundColor: (commentInputs[post.id]?.trim()) ? '#1d9bf0' : '#1d9bf050',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '24px',
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                cursor: (commentInputs[post.id]?.trim()) ? 'pointer' : 'not-allowed',
+                                transition: 'background-color 0.2s',
+                              }}
+                            >
+                              {submittingComments[post.id] ? '發送中...' : '回覆'}
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    )}
                       </div>
                     ))
                   )}
@@ -1143,9 +1506,432 @@ export default function UserProfile() {
               )}
 
               {activeTab === 'highlights' && (
-                <div className="empty-posts">
-                  <p>尚無精選內容</p>
-                </div>
+                <>
+                  {loadingBookmarkedPosts ? (
+                    <div className="empty-posts">
+                      <p>載入中...</p>
+                    </div>
+                  ) : bookmarkedPosts.length === 0 ? (
+                    <div className="empty-posts">
+                      <p>尚無精選內容</p>
+                    </div>
+                  ) : (
+                    bookmarkedPosts.map((post) => (
+                      <div key={post.id} className="profile-post-item">
+                        {/* 使用與 posts 標籤相同的貼文顯示邏輯 */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '12px',
+                            transition: 'background-color 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#080808'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          {/* 用戶頭像 */}
+                          <div style={{ flexShrink: 0 }}>
+                            {post.author?.image ? (
+                              <img
+                                src={post.author.image}
+                                alt={post.author.name}
+                                style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  borderRadius: '50%',
+                                  backgroundColor: '#1d9bf0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#ffffff',
+                                  fontSize: '18px',
+                                  fontWeight: '700',
+                                }}
+                              >
+                                {post.author?.name?.charAt(0)?.toUpperCase() || 'U'}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 帖子内容 */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* 用户信息和时间戳 */}
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                              <strong style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginRight: '4px' }}>
+                                {post.author?.name || 'Unknown'}
+                              </strong>
+                              <span style={{ color: '#71767b', fontSize: '15px', marginRight: '4px' }}>
+                                @{post.author?.userID || 'unknown'}
+                              </span>
+                              {post.createdAt && (
+                                <>
+                                  <span style={{ color: '#71767b', fontSize: '15px', margin: '0 4px' }}>·</span>
+                                  <span style={{ color: '#71767b', fontSize: '15px' }}>
+                                    {new Date(post.createdAt).toLocaleDateString('zh-TW', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* 帖子内容 */}
+                            <p
+                              style={{
+                                fontSize: '15px',
+                                color: '#ffffff',
+                                marginBottom: '12px',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {post.content}
+                            </p>
+
+                            {/* 交互按钮 */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                maxWidth: '425px',
+                                marginTop: '12px',
+                              }}
+                            >
+                              {/* 评论 */}
+                              <button
+                                onClick={() => handleToggleComments(post.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#71767b',
+                                  cursor: 'pointer',
+                                  padding: '8px',
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'color 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#1d9bf0';
+                                  e.currentTarget.style.backgroundColor = '#1d9bf010';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = '#71767b';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="回覆"
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                </svg>
+                                {post.comments && post.comments.length > 0 && (
+                                  <span style={{ fontSize: '13px' }}>{post.comments.length}</span>
+                                )}
+                              </button>
+
+                              {/* 转发 */}
+                              <button
+                                onClick={() => handleRepost(post.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: post.isReposted ? '#00ba7c' : '#71767b',
+                                  cursor: 'pointer',
+                                  padding: '8px',
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'color 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#00ba7c';
+                                  e.currentTarget.style.backgroundColor = '#00ba7c10';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = post.isReposted ? '#00ba7c' : '#71767b';
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={post.isReposted ? '取消轉發' : '轉發'}
+                              >
+                                <svg 
+                                  width="18" 
+                                  height="18" 
+                                  viewBox="0 0 24 24" 
+                                  fill={post.isReposted ? 'currentColor' : 'none'} 
+                                  stroke="currentColor" 
+                                  strokeWidth="2"
+                                >
+                                  <path d="M17 1l4 4-4 4" />
+                                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                                  <path d="M7 23l-4-4 4-4" />
+                                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                                </svg>
+                                {post.repostCount > 0 && (
+                                  <span style={{ fontSize: '13px' }}>{post.repostCount}</span>
+                                )}
+                              </button>
+
+                              {/* 点赞 */}
+                              <button
+                                onClick={() => handleLike(post.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: (post.likes || []).includes(session?.user?.userID)
+                                    ? '#f4212e'
+                                    : '#71767b',
+                                  cursor: 'pointer',
+                                  padding: '8px',
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'color 0.2s',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!(post.likes || []).includes(session?.user?.userID)) {
+                                    e.currentTarget.style.color = '#f4212e';
+                                    e.currentTarget.style.backgroundColor = '#f4212e10';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!(post.likes || []).includes(session?.user?.userID)) {
+                                    e.currentTarget.style.color = '#71767b';
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }
+                                }}
+                                title="喜歡"
+                              >
+                                <svg
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill={(post.likes || []).includes(session?.user?.userID) ? 'currentColor' : 'none'}
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                </svg>
+                                {(post.likes || []).length > 0 && (
+                                  <span style={{ fontSize: '13px' }}>{(post.likes || []).length}</span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 留言区域 */}
+                        {expandedComments[post.id] && (
+                          <div
+                            style={{
+                              marginTop: '16px',
+                              paddingTop: '16px',
+                              borderTop: '1px solid #2f3336',
+                            }}
+                          >
+                            {/* 留言列表 */}
+                            {post.comments && post.comments.length > 0 && (
+                              <div style={{ marginBottom: '16px' }}>
+                                {post.comments.map((comment) => (
+                                  <div
+                                    key={comment.id || comment._id}
+                                    style={{
+                                      display: 'flex',
+                                      gap: '12px',
+                                      padding: '12px 0',
+                                      borderBottom: '1px solid #2f3336',
+                                    }}
+                                  >
+                                    {/* 留言者头像 */}
+                                    {comment.author?.userID ? (
+                                      <Link href={`/${comment.author.userID}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                                        {comment.author?.image ? (
+                                          <img
+                                            src={comment.author.image}
+                                            alt={comment.author.name}
+                                            style={{
+                                              width: '32px',
+                                              height: '32px',
+                                              borderRadius: '50%',
+                                              objectFit: 'cover',
+                                              cursor: 'pointer',
+                                            }}
+                                          />
+                                        ) : (
+                                          <div
+                                            style={{
+                                              width: '32px',
+                                              height: '32px',
+                                              borderRadius: '50%',
+                                              backgroundColor: '#1d9bf0',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              color: '#ffffff',
+                                              fontSize: '14px',
+                                              fontWeight: '700',
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            {comment.author?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                          </div>
+                                        )}
+                                      </Link>
+                                    ) : (
+                                      <div style={{ flexShrink: 0 }}>
+                                        {comment.author?.image ? (
+                                          <img
+                                            src={comment.author.image}
+                                            alt={comment.author.name}
+                                            style={{
+                                              width: '32px',
+                                              height: '32px',
+                                              borderRadius: '50%',
+                                              objectFit: 'cover',
+                                            }}
+                                          />
+                                        ) : (
+                                          <div
+                                            style={{
+                                              width: '32px',
+                                              height: '32px',
+                                              borderRadius: '50%',
+                                              backgroundColor: '#1d9bf0',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              color: '#ffffff',
+                                              fontSize: '14px',
+                                              fontWeight: '700',
+                                            }}
+                                          >
+                                            {comment.author?.name?.charAt(0)?.toUpperCase() || 'U'}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* 留言内容 */}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                                        {comment.author?.userID ? (
+                                          <Link href={`/${comment.author.userID}`} style={{ textDecoration: 'none' }}>
+                                            <strong style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginRight: '4px', cursor: 'pointer' }}>
+                                              {comment.author?.name || 'Unknown'}
+                                            </strong>
+                                            <span style={{ color: '#71767b', fontSize: '15px', cursor: 'pointer' }}>
+                                              @{comment.author.userID}
+                                            </span>
+                                          </Link>
+                                        ) : (
+                                          <>
+                                            <strong style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff', marginRight: '4px' }}>
+                                              {comment.author?.name || 'Unknown'}
+                                            </strong>
+                                            {comment.author?.userID && (
+                                              <span style={{ color: '#71767b', fontSize: '15px' }}>
+                                                @{comment.author.userID}
+                                              </span>
+                                            )}
+                                          </>
+                                        )}
+                                        {comment.createdAt && (
+                                          <>
+                                            <span style={{ color: '#71767b', fontSize: '15px', margin: '0 4px' }}>·</span>
+                                            <span style={{ color: '#71767b', fontSize: '15px' }}>
+                                              {new Date(comment.createdAt).toLocaleDateString('zh-TW', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                              })}
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                      <p
+                                        style={{
+                                          fontSize: '15px',
+                                          color: '#ffffff',
+                                          margin: 0,
+                                          whiteSpace: 'pre-wrap',
+                                          wordBreak: 'break-word',
+                                        }}
+                                      >
+                                        {comment.content}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* 添加留言表单 */}
+                            {session && (
+                              <form
+                                onSubmit={(e) => handleCommentSubmit(e, post.id)}
+                                style={{
+                                  display: 'flex',
+                                  gap: '8px',
+                                  alignItems: 'flex-start',
+                                }}
+                              >
+                                <input
+                                  type="text"
+                                  placeholder="寫下你的留言..."
+                                  value={commentInputs[post.id] || ''}
+                                  onChange={(e) =>
+                                    setCommentInputs((prev) => ({
+                                      ...prev,
+                                      [post.id]: e.target.value,
+                                    }))
+                                  }
+                                  style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    backgroundColor: '#000000',
+                                    border: '1px solid #2f3336',
+                                    borderRadius: '24px',
+                                    color: '#ffffff',
+                                    fontSize: '15px',
+                                    outline: 'none',
+                                  }}
+                                  disabled={submittingComments[post.id]}
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={submittingComments[post.id] || !(commentInputs[post.id]?.trim())}
+                                  style={{
+                                    padding: '12px 24px',
+                                    backgroundColor: (commentInputs[post.id]?.trim()) ? '#1d9bf0' : '#1d9bf050',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '24px',
+                                    fontSize: '15px',
+                                    fontWeight: '700',
+                                    cursor: (commentInputs[post.id]?.trim()) ? 'pointer' : 'not-allowed',
+                                    transition: 'background-color 0.2s',
+                                  }}
+                                >
+                                  {submittingComments[post.id] ? '發送中...' : '回覆'}
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </>
               )}
 
               {activeTab === 'articles' && (

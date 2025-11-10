@@ -14,6 +14,9 @@ export default function Messages() {
   const [messageContent, setMessageContent] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const messagesEndRef = useRef(null);
   const pusherRef = useRef(null);
 
@@ -147,6 +150,39 @@ export default function Messages() {
     return conversations.find(c => c.userID === conversation) || null;
   };
 
+  // 搜索用戶
+  const handleSearchUsers = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const response = await fetch(`/api/users/list?search=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      if (data.success) {
+        // 過濾掉當前用戶
+        const currentUserID = session?.user?.userID;
+        const filteredResults = data.users.filter(
+          (user) => user.userID !== currentUserID
+        );
+        setSearchResults(filteredResults);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // 開始新對話
+  const handleStartConversation = (userID) => {
+    setSelectedConversation(userID);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
   if (status === 'loading' || loading) {
     return (
       <Layout>
@@ -173,7 +209,7 @@ export default function Messages() {
               height: '100%',
             }}
           >
-            {/* 標題 */}
+            {/* 標題和搜索 */}
             <div
               style={{
                 padding: '16px',
@@ -184,9 +220,113 @@ export default function Messages() {
                 zIndex: 10,
               }}
             >
-              <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', margin: 0 }}>
+              <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#ffffff', margin: '0 0 12px 0' }}>
                 Messages
               </h1>
+              {/* 搜索框 */}
+              <input
+                type="text"
+                placeholder="搜索用戶..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  handleSearchUsers(e.target.value);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  backgroundColor: '#000000',
+                  border: '1px solid #2f3336',
+                  borderRadius: '24px',
+                  color: '#ffffff',
+                  fontSize: '15px',
+                  outline: 'none',
+                }}
+                onFocus={(e) => {
+                  e.target.borderColor = '#1d9bf0';
+                }}
+                onBlur={(e) => {
+                  e.target.borderColor = '#2f3336';
+                }}
+              />
+              {/* 搜索結果 */}
+              {searchQuery.trim() && searchResults.length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: '16px',
+                    right: '16px',
+                    marginTop: '8px',
+                    backgroundColor: '#000000',
+                    border: '1px solid #2f3336',
+                    borderRadius: '12px',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    zIndex: 1000,
+                  }}
+                >
+                  {searchResults.map((user) => (
+                    <div
+                      key={user.userID}
+                      onClick={() => handleStartConversation(user.userID)}
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        borderBottom: '1px solid #2f3336',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#181818';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {user.image ? (
+                        <img
+                          src={user.image}
+                          alt={user.name}
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            backgroundColor: '#1d9bf0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            fontSize: '18px',
+                            fontWeight: '700',
+                          }}
+                        >
+                          {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#ffffff' }}>
+                          {user.name}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#71767b' }}>
+                          @{user.userID}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 對話列表 */}

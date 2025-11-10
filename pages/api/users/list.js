@@ -6,17 +6,31 @@ export default async function handler(req, res) {
   }
 
   try {
+    const { search } = req.query;
     const client = await clientPromise;
     const db = client.db();
     const users = db.collection('users');
 
+    let query = { oauthCompleted: true };
+
+    // 如果有搜索查詢，添加搜索條件
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { userID: searchRegex },
+        { name: searchRegex },
+        { email: searchRegex },
+      ];
+    }
+
     // 獲取所有已註冊的用戶（只返回已完成 OAuth 的用戶）
     const allUsers = await users
       .find(
-        { oauthCompleted: true },
-        { projection: { userID: 1, name: 1, provider: 1, image: 1 } }
+        query,
+        { projection: { userID: 1, name: 1, provider: 1, image: 1, email: 1 } }
       )
       .sort({ createdAt: -1 })
+      .limit(20) // 限制搜索結果數量
       .toArray();
 
     return res.status(200).json({
@@ -26,6 +40,7 @@ export default async function handler(req, res) {
         name: user.name,
         provider: user.provider,
         image: user.image,
+        email: user.email,
       })),
     });
   } catch (error) {
