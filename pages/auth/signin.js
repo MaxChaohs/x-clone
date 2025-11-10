@@ -46,27 +46,8 @@ export default function SignIn() {
     }
   }, [status, session, router]);
 
-  // 載入已註冊用戶列表
-  useEffect(() => {
-    if (registerStep === 'login') {
-      loadRegisteredUsers();
-    }
-  }, [registerStep]);
-
-  const loadRegisteredUsers = async () => {
-    setLoadingUsers(true);
-    try {
-      const response = await fetch('/api/users/list');
-      const data = await response.json();
-      if (data.success) {
-        setRegisteredUsers(data.users);
-      }
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+  // 不再載入所有用戶列表（安全問題）
+  // 用戶必須通過搜索或直接輸入 userID 來登入
 
   // 註冊步驟 1：選擇 Provider
   const handleRegisterStep1 = () => {
@@ -199,6 +180,28 @@ export default function SignIn() {
     }
   };
 
+  // 搜索用戶（僅用於登入，不顯示所有用戶列表）
+  const handleSearchUser = async (searchTerm) => {
+    if (!searchTerm || !searchTerm.trim()) {
+      setRegisteredUsers([]);
+      return;
+    }
+
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`/api/users/list?search=${encodeURIComponent(searchTerm.trim())}`);
+      const data = await response.json();
+      if (data.success) {
+        setRegisteredUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setRegisteredUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   if (status === 'loading') {
     return <div>Loading...</div>;
   }
@@ -218,6 +221,7 @@ export default function SignIn() {
       onRegisterStep1={handleRegisterStep1}
       onRegisterStep2={handleRegisterStep2}
       onLoginWithUserID={handleLoginWithUserID}
+      onSearchUser={handleSearchUser}
     />
   );
 }
