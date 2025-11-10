@@ -45,33 +45,68 @@ export default async function handler(req, res) {
       });
     }
 
+    const posts = db.collection('posts');
+    const messages = db.collection('messages');
+    
     // 修复每个重复的 userID
     let fixedCount = 0;
     for (const userID of duplicateUserIDs) {
       const userGroup = userIDGroups[userID];
       
+      // 按创建时间排序，保留最早创建的 userID，为其他 provider 创建新的 userID
+      userGroup.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      
       // 保留第一个 provider 的 userID，为其他 provider 创建新的 userID
       for (let i = 1; i < userGroup.length; i++) {
         const user = userGroup[i];
-        const newUserID = `${user.provider}_${user.providerId}`;
+        let newUserID = `${user.provider}_${user.providerId}`;
         
         // 检查新 userID 是否已存在
-        const existingUser = await users.findOne({ userID: newUserID });
+        let existingUser = await users.findOne({ userID: newUserID });
         if (existingUser) {
           // 如果新 userID 已存在，使用更长的格式
-          const alternativeUserID = `${user.provider}_${user.providerId}_${user._id.toString().slice(-6)}`;
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { userID: alternativeUserID } }
-          );
-          console.log(`修复用户记录: ${userID} -> ${alternativeUserID} (provider: ${user.provider})`);
-        } else {
-          await users.updateOne(
-            { _id: user._id },
-            { $set: { userID: newUserID } }
-          );
-          console.log(`修复用户记录: ${userID} -> ${newUserID} (provider: ${user.provider})`);
+          newUserID = `${user.provider}_${user.providerId}_${user._id.toString().slice(-6)}`;
         }
+        
+        const oldUserID = user.userID;
+        
+        // 更新用户记录
+        await users.updateOne(
+          { _id: user._id },
+          { $set: { userID: newUserID } }
+        );
+        console.log(`修复用户记录: ${oldUserID} -> ${newUserID} (provider: ${user.provider})`);
+        
+        // 更新该用户创建的所有贴文的 author.userID
+        // 注意：需要同时匹配 userID 和 email，确保只更新该 provider 的贴文
+        const postsResult = await posts.updateMany(
+          { 
+            'author.userID': oldUserID,
+            'author.email': user.email,
+          },
+          { $set: { 'author.userID': newUserID } }
+        );
+        console.log(`更新了 ${postsResult.modifiedCount} 条贴文的 author.userID (${oldUserID} -> ${newUserID})`);
+        
+        // 更新该用户创建的所有消息的 senderID 和 receiverID
+        const messagesResult = await messages.updateMany(
+          {
+            $or: [
+              { senderID: oldUserID, senderEmail: user.email },
+              { receiverID: oldUserID, receiverEmail: user.email },
+            ],
+          },
+          [
+            {
+              $set: {
+                senderID: { $cond: [{ $eq: ['$senderID', oldUserID] }, newUserID, '$senderID'] },
+                receiverID: { $cond: [{ $eq: ['$receiverID', oldUserID] }, newUserID, '$receiverID'] },
+              },
+            },
+          ]
+        );
+        console.log(`更新了 ${messagesResult.modifiedCount} 条消息的 senderID/receiverID`);
+        
         fixedCount++;
       }
     }
