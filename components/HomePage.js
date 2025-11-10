@@ -519,34 +519,6 @@ export default function HomePage() {
     }
   };
 
-  // 刪除帳號功能
-  const handleDeleteAccount = async () => {
-    if (!confirm('確定要刪除您的帳號嗎？此操作將永久刪除：\n\n- 您的所有貼文\n- 您的所有消息\n- 您的帳號資料\n\n此操作不可恢復！')) {
-      return;
-    }
-
-    if (!confirm('再次確認：您真的要刪除帳號嗎？\n\n這將永久刪除您的所有數據，無法恢復！')) {
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/users/delete-account', {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        alert(`帳號已成功刪除！\n\n已刪除：\n- ${data.deletedCount.user} 個帳號\n- ${data.deletedCount.posts} 篇貼文\n- ${data.deletedCount.messages} 條消息`);
-        // 登出並跳轉到登入頁面
-        window.location.href = '/auth/signin';
-      } else {
-        alert(data.message || '刪除帳號失敗');
-      }
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      alert('刪除帳號失敗，請稍後再試');
-    }
-  };
 
   const handleToggleComments = (postId) => {
     setExpandedComments((prev) => ({
@@ -1764,69 +1736,6 @@ export default function HomePage() {
             </div>
           ))}
         </div>
-
-        {/* 帳號設置區域 */}
-        {session && (
-          <div
-            style={{
-              padding: '24px 16px',
-              borderTop: '1px solid #2f3336',
-              marginTop: '32px',
-            }}
-          >
-            <div
-              style={{
-                maxWidth: '600px',
-                margin: '0 auto',
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: '20px',
-                  fontWeight: '700',
-                  color: '#ffffff',
-                  marginBottom: '16px',
-                }}
-              >
-                帳號設置
-              </h3>
-              <button
-                type="button"
-                onClick={handleDeleteAccount}
-                style={{
-                  width: '100%',
-                  padding: '12px 24px',
-                  backgroundColor: 'transparent',
-                  border: '1px solid #f4212e',
-                  borderRadius: '24px',
-                  color: '#f4212e',
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f4212e20';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                刪除帳號
-              </button>
-              <p
-                style={{
-                  fontSize: '13px',
-                  color: '#71767b',
-                  marginTop: '8px',
-                  textAlign: 'center',
-                }}
-              >
-                此操作將永久刪除您的帳號和所有相關數據，無法恢復
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

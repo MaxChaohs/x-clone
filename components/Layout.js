@@ -14,6 +14,34 @@ export default function Layout({ children }) {
     await signOut({ callbackUrl: '/auth/signin' });
   };
 
+  const handleDeleteAccount = async () => {
+    if (!confirm('確定要刪除您的帳號嗎？此操作將永久刪除：\n\n- 您的所有貼文\n- 您的所有消息\n- 您的帳號資料\n\n此操作不可恢復！')) {
+      return;
+    }
+
+    if (!confirm('再次確認：您真的要刪除帳號嗎？\n\n這將永久刪除您的所有數據，無法恢復！')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users/delete-account', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`帳號已成功刪除！\n\n已刪除：\n- ${data.deletedCount.user} 個帳號\n- ${data.deletedCount.posts} 篇貼文\n- ${data.deletedCount.messages} 條消息`);
+        // 登出並跳轉到登入頁面
+        window.location.href = '/auth/signin';
+      } else {
+        alert(data.message || '刪除帳號失敗');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('刪除帳號失敗，請稍後再試');
+    }
+  };
+
   const navItems = [
     { href: '/home', label: 'Home', icon: 'home' },
     { href: '/messages', label: 'Messages', icon: 'messages' },
@@ -98,6 +126,16 @@ export default function Layout({ children }) {
               <div className="logout-popup show">
                 <button className="logout-button" onClick={handleLogout}>
                   登出
+                </button>
+                <button 
+                  className="logout-button delete-account-button" 
+                  onClick={handleDeleteAccount}
+                  style={{
+                    color: '#f4212e',
+                    borderTop: '1px solid #2f3336',
+                  }}
+                >
+                  刪除帳號
                 </button>
               </div>
             )}
