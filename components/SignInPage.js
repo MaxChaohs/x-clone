@@ -18,16 +18,13 @@ export default function SignInPage({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 搜索用户（使用防抖）
+  // 搜索用户（使用防抖）- 移除 onSearchUsers 從依賴項，避免無限循環
   useEffect(() => {
     if (registerStep === 'login' && onSearchUsers) {
-      const timeoutId = setTimeout(() => {
-        onSearchUsers(searchTerm);
-      }, 300); // 300ms 防抖
-
-      return () => clearTimeout(timeoutId);
+      // 直接調用，防抖邏輯已在父組件中處理
+      onSearchUsers(searchTerm);
     }
-  }, [searchTerm, registerStep, onSearchUsers]);
+  }, [searchTerm, registerStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 过滤已注册用户（本地过滤，用于高亮显示）
   const filteredUsers = registeredUsers?.filter((user) =>

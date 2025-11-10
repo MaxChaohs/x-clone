@@ -1,6 +1,6 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { signIn } from 'next-auth/react';
 import SignInPage from '@/components/SignInPage';
 
@@ -97,15 +97,8 @@ export default function SignIn() {
     }
   };
 
-  // 從 localStorage 載入本地登入過的帳號列表
-  useEffect(() => {
-    if (registerStep === 'login') {
-      loadLocalUsers();
-    }
-  }, [registerStep]);
-
-  // 載入本地存儲的帳號列表
-  const loadLocalUsers = () => {
+  // 載入本地存儲的帳號列表 - 使用 useCallback 確保函數引用穩定
+  const loadLocalUsers = useCallback(() => {
     try {
       // 確保在瀏覽器環境中
       if (typeof window === 'undefined') {
@@ -130,49 +123,77 @@ export default function SignIn() {
       console.error('Error loading local users:', error);
       setRegisteredUsers([]);
     }
-  };
+  }, []);
 
-  // 搜索用戶（用於搜索其他用戶）
-  const searchUsers = async (searchTerm) => {
+  // 從 localStorage 載入本地登入過的帳號列表
+  useEffect(() => {
+    if (registerStep === 'login') {
+      loadLocalUsers();
+    }
+  }, [registerStep, loadLocalUsers]);
+
+  // 使用 useRef 來追蹤當前的搜索請求，避免重複請求
+  const searchTimeoutRef = useRef(null);
+  const lastSearchTermRef = useRef('');
+
+  // 搜索用戶（用於搜索其他用戶）- 使用 useCallback 確保函數引用穩定
+  const searchUsers = useCallback(async (searchTerm) => {
+    // 清除之前的定時器
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // 如果搜索詞與上次相同，不重複搜索
+    if (searchTerm === lastSearchTermRef.current) {
+      return;
+    }
+
+    // 如果沒有搜索條件，只顯示本地帳號
     if (!searchTerm || !searchTerm.trim()) {
-      // 如果沒有搜索條件，只顯示本地帳號
+      lastSearchTermRef.current = '';
       loadLocalUsers();
       return;
     }
 
-    setLoadingUsers(true);
-    try {
-      const response = await fetch(`/api/users/list?search=${encodeURIComponent(searchTerm.trim())}`);
-      const data = await response.json();
-      if (data.success) {
-        // 合併搜索結果和本地帳號（去重）
-        if (typeof window !== 'undefined') {
-          const localUsersJson = localStorage.getItem('vas_logged_in_users');
-          const localUsers = localUsersJson ? JSON.parse(localUsersJson) : [];
-          
-          // 合併並去重（基於 userID）
-          const allUsers = [...localUsers];
-          const localUserIDs = new Set(localUsers.map(u => u.userID));
-          
-          data.users.forEach(user => {
-            if (!localUserIDs.has(user.userID)) {
-              allUsers.push(user);
-            }
-          });
-          
-          setRegisteredUsers(allUsers);
-        } else {
-          setRegisteredUsers(data.users || []);
+    // 更新最後搜索詞
+    lastSearchTermRef.current = searchTerm;
+
+    // 使用防抖，避免頻繁請求
+    searchTimeoutRef.current = setTimeout(async () => {
+      setLoadingUsers(true);
+      try {
+        const response = await fetch(`/api/users/list?search=${encodeURIComponent(searchTerm.trim())}`);
+        const data = await response.json();
+        if (data.success) {
+          // 合併搜索結果和本地帳號（去重）
+          if (typeof window !== 'undefined') {
+            const localUsersJson = localStorage.getItem('vas_logged_in_users');
+            const localUsers = localUsersJson ? JSON.parse(localUsersJson) : [];
+            
+            // 合併並去重（基於 userID）
+            const allUsers = [...localUsers];
+            const localUserIDs = new Set(localUsers.map(u => u.userID));
+            
+            data.users.forEach(user => {
+              if (!localUserIDs.has(user.userID)) {
+                allUsers.push(user);
+              }
+            });
+            
+            setRegisteredUsers(allUsers);
+          } else {
+            setRegisteredUsers(data.users || []);
+          }
         }
+      } catch (error) {
+        console.error('Error searching users:', error);
+        // 搜索失敗時，至少顯示本地帳號
+        loadLocalUsers();
+      } finally {
+        setLoadingUsers(false);
       }
-    } catch (error) {
-      console.error('Error searching users:', error);
-      // 搜索失敗時，至少顯示本地帳號
-      loadLocalUsers();
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+    }, 300); // 300ms 防抖
+  }, [loadLocalUsers]);
 
   // 註冊步驟 1：選擇 Provider
   const handleRegisterStep1 = () => {
