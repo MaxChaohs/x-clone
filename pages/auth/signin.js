@@ -38,6 +38,8 @@ export default function SignIn() {
     if (status === 'authenticated' && session) {
       // 檢查是否有有效的 userID
       if (session.user?.userID) {
+        // 將當前登入的帳號保存到 localStorage
+        saveUserToLocalStorage(session.user);
         router.push('/home');
       } else {
         // 如果沒有 userID，等待一下再檢查
@@ -46,23 +48,127 @@ export default function SignIn() {
     }
   }, [status, session, router]);
 
-  // 載入已註冊用戶列表
+  // 將用戶保存到 localStorage
+  const saveUserToLocalStorage = (user) => {
+    try {
+      if (!user?.userID) return;
+
+      // 確保在瀏覽器環境中
+      if (typeof window === 'undefined') return;
+
+      const localUsersJson = localStorage.getItem('vas_logged_in_users');
+      const localUsers = localUsersJson ? JSON.parse(localUsersJson) : [];
+
+      // 檢查是否已存在
+      const existingIndex = localUsers.findIndex(u => u.userID === user.userID);
+      
+      const userData = {
+        userID: user.userID,
+        name: user.name || '',
+        provider: user.provider || 'unknown',
+        image: user.image || null,
+        email: user.email || null,
+        lastLoginAt: new Date().toISOString(),
+      };
+
+      if (existingIndex >= 0) {
+        // 更新現有用戶（更新最後登入時間）
+        localUsers[existingIndex] = userData;
+      } else {
+        // 添加新用戶
+        localUsers.push(userData);
+      }
+
+      // 限制最多保存 10 個帳號
+      const maxAccounts = 10;
+      if (localUsers.length > maxAccounts) {
+        // 按最後登入時間排序，保留最新的
+        localUsers.sort((a, b) => {
+          const timeA = new Date(a.lastLoginAt || 0).getTime();
+          const timeB = new Date(b.lastLoginAt || 0).getTime();
+          return timeB - timeA;
+        });
+        localUsers.splice(maxAccounts);
+      }
+
+      localStorage.setItem('vas_logged_in_users', JSON.stringify(localUsers));
+    } catch (error) {
+      console.error('Error saving user to localStorage:', error);
+    }
+  };
+
+  // 從 localStorage 載入本地登入過的帳號列表
   useEffect(() => {
     if (registerStep === 'login') {
-      loadRegisteredUsers();
+      loadLocalUsers();
     }
   }, [registerStep]);
 
-  const loadRegisteredUsers = async () => {
-    setLoadingUsers(true);
+  // 載入本地存儲的帳號列表
+  const loadLocalUsers = () => {
     try {
-      const response = await fetch('/api/users/list');
-      const data = await response.json();
-      if (data.success) {
-        setRegisteredUsers(data.users);
+      // 確保在瀏覽器環境中
+      if (typeof window === 'undefined') {
+        setRegisteredUsers([]);
+        return;
+      }
+
+      const localUsersJson = localStorage.getItem('vas_logged_in_users');
+      if (localUsersJson) {
+        const localUsers = JSON.parse(localUsersJson);
+        // 按最後登入時間排序（最新的在前）
+        localUsers.sort((a, b) => {
+          const timeA = new Date(a.lastLoginAt || 0).getTime();
+          const timeB = new Date(b.lastLoginAt || 0).getTime();
+          return timeB - timeA;
+        });
+        setRegisteredUsers(localUsers);
+      } else {
+        setRegisteredUsers([]);
       }
     } catch (error) {
-      console.error('Error loading users:', error);
+      console.error('Error loading local users:', error);
+      setRegisteredUsers([]);
+    }
+  };
+
+  // 搜索用戶（用於搜索其他用戶）
+  const searchUsers = async (searchTerm) => {
+    if (!searchTerm || !searchTerm.trim()) {
+      // 如果沒有搜索條件，只顯示本地帳號
+      loadLocalUsers();
+      return;
+    }
+
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`/api/users/list?search=${encodeURIComponent(searchTerm.trim())}`);
+      const data = await response.json();
+      if (data.success) {
+        // 合併搜索結果和本地帳號（去重）
+        if (typeof window !== 'undefined') {
+          const localUsersJson = localStorage.getItem('vas_logged_in_users');
+          const localUsers = localUsersJson ? JSON.parse(localUsersJson) : [];
+          
+          // 合併並去重（基於 userID）
+          const allUsers = [...localUsers];
+          const localUserIDs = new Set(localUsers.map(u => u.userID));
+          
+          data.users.forEach(user => {
+            if (!localUserIDs.has(user.userID)) {
+              allUsers.push(user);
+            }
+          });
+          
+          setRegisteredUsers(allUsers);
+        } else {
+          setRegisteredUsers(data.users || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+      // 搜索失敗時，至少顯示本地帳號
+      loadLocalUsers();
     } finally {
       setLoadingUsers(false);
     }
@@ -219,6 +325,7 @@ export default function SignIn() {
       onRegisterStep1={handleRegisterStep1}
       onRegisterStep2={handleRegisterStep2}
       onLoginWithUserID={handleLoginWithUserID}
+      onSearchUsers={searchUsers}
     />
   );
 }

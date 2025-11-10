@@ -4,8 +4,9 @@ export default function SignInPage({
   onRegisterStep1, // 选择 Provider
   onRegisterStep2, // 输入 userID 和名称
   onLoginWithUserID, // 通过 userID 登录
-  registeredUsers, // 已注册用户列表
+  registeredUsers, // 已注册用户列表（本地 + 搜索结果）
   loadingUsers,
+  onSearchUsers, // 搜索用户
   selectedProvider,
   setSelectedProvider,
   userID,
@@ -17,8 +18,20 @@ export default function SignInPage({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 过滤已注册用户
+  // 搜索用户（使用防抖）
+  useEffect(() => {
+    if (registerStep === 'login' && onSearchUsers) {
+      const timeoutId = setTimeout(() => {
+        onSearchUsers(searchTerm);
+      }, 300); // 300ms 防抖
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm, registerStep, onSearchUsers]);
+
+  // 过滤已注册用户（本地过滤，用于高亮显示）
   const filteredUsers = registeredUsers?.filter((user) =>
+    !searchTerm || 
     user.userID.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
@@ -166,13 +179,16 @@ export default function SignInPage({
                     fontSize: '15px',
                   }}
                 />
+                <small className="form-hint" style={{ marginTop: '8px', display: 'block', color: '#71767b', fontSize: '13px' }}>
+                  {searchTerm ? '搜索所有用戶...' : '顯示此瀏覽器曾經登入過的帳號'}
+                </small>
               </div>
 
               {loadingUsers ? (
-                <div style={{ textAlign: 'center', color: '#71767b' }}>載入中...</div>
+                <div style={{ textAlign: 'center', color: '#71767b' }}>搜索中...</div>
               ) : filteredUsers.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#71767b' }}>
-                  {searchTerm ? '找不到匹配的用戶' : '尚無已註冊的用戶'}
+                <div style={{ textAlign: 'center', color: '#71767b', padding: '40px 0' }}>
+                  {searchTerm ? '找不到匹配的用戶' : '此瀏覽器尚未登入過任何帳號'}
                 </div>
               ) : (
                 <div className="users-list">

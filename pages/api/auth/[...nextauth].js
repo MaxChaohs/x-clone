@@ -158,11 +158,13 @@ export default NextAuth({
           session.user.name = dbUser.name || session.user.name;
           session.user.image = dbUser.image || session.user.image;
           session.user.email = dbUser.email || session.user.email;
+          session.user.provider = dbUser.provider || token.provider || 'unknown';
           
           // 调试日志
           console.log('Session callback: 找到用戶', {
             userID: session.user.userID,
             email: session.user.email,
+            provider: session.user.provider,
           });
         } else {
           // 如果找不到用戶，使用 token 中的信息
@@ -170,9 +172,11 @@ export default NextAuth({
             session.user.id = token.id;
             session.user.userID = token.userID;
             session.user.email = token.email || session.user.email;
+            session.user.provider = token.provider || 'unknown';
             
             console.log('Session callback: 使用 token 中的 userID', {
               userID: session.user.userID,
+              provider: session.user.provider,
             });
           } else {
             // 如果找不到用戶，記錄警告
