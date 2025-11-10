@@ -126,6 +126,7 @@ export default async function handler(req, res) {
 
       // 确保 userID 存在
       let authorUserID = session.user?.userID;
+      let authorEmail = session.user?.email;
       
       // 调试日志
       console.log('Creating post - session check:', {
@@ -135,10 +136,16 @@ export default async function handler(req, res) {
         sessionUser: session.user,
       });
 
-      // 如果 session 中没有 userID，无法创建贴文
-      // 注意：不要通过 email 查找用户，因为同一个 email 可能对应不同的 provider 和不同的 userID
-      // 应该通过 session 中的 userID 来查找用户
+      // 如果 session 中没有 userID，尝试从数据库查找
+      if (!authorUserID && authorEmail) {
+        const dbUser = await users.findOne({ email: authorEmail });
+        if (dbUser && dbUser.userID) {
+          authorUserID = dbUser.userID;
+          console.log('Found userID from database:', authorUserID);
+        }
+      }
 
+      // 如果仍然没有 userID，无法创建贴文
       if (!authorUserID) {
         console.error('Cannot create post: no userID', {
           sessionUser: session.user,
