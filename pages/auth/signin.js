@@ -300,6 +300,27 @@ export default function SignIn() {
       const data = await response.json();
 
       if (data.success) {
+        // 如果有多個匹配的用戶（不同 provider），讓用戶選擇
+        if (data.multiple && data.users && data.users.length > 1) {
+          // 暫時使用第一個找到的 provider（未來可以改進為讓用戶選擇）
+          // 優先使用 Google，然後是 GitHub
+          const sortedUsers = data.users.sort((a, b) => {
+            if (a.provider === 'google') return -1;
+            if (b.provider === 'google') return 1;
+            if (a.provider === 'github') return -1;
+            if (b.provider === 'github') return 1;
+            return 0;
+          });
+          const selectedUser = sortedUsers[0];
+          
+          await signIn(selectedUser.provider, {
+            callbackUrl: '/home',
+            redirect: true,
+          });
+          return;
+        }
+        
+        // 單一用戶的情況
         // 檢查用戶是否已完成 OAuth
         if (data.oauthCompleted === false) {
           // 用戶已註冊但未完成 OAuth，提示用戶完成 OAuth

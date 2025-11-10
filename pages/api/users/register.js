@@ -40,12 +40,30 @@ export default async function handler(req, res) {
     const db = client.db();
     const users = db.collection('users');
 
-    // 檢查用戶ID是否已存在
-    const existingUser = await users.findOne({ userID });
+    // 檢查該 provider 下該 userID 是否已存在
+    // 允許同一個 userID 被不同的 provider 使用，因為它們是不同的賬戶
+    const existingUser = await users.findOne({ 
+      userID,
+      provider,
+      oauthCompleted: true,
+    });
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: '此用戶ID 已被使用',
+        message: '此用戶ID 在此 OAuth Provider 下已被使用',
+      });
+    }
+
+    // 檢查是否有未完成的註冊記錄（同一 provider 和 userID）
+    const pendingUser = await users.findOne({
+      userID,
+      provider,
+      oauthCompleted: false,
+    });
+    if (pendingUser) {
+      return res.status(409).json({
+        success: false,
+        message: '此用戶ID 在此 OAuth Provider 下已有待完成的註冊記錄',
       });
     }
 
