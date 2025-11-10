@@ -44,10 +44,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // 确保 userID 存在
+    // 确保 userID 和 email 存在
     let currentUserID = session.user?.userID;
     let currentUserEmail = session.user?.email;
     let currentUserName = session.user?.name;
+    
+    // 收集所有可能的 userID（處理不同 provider 但同一個 email 的情況）
+    let allPossibleUserIDs = [];
+    if (currentUserID) {
+      allPossibleUserIDs.push(currentUserID);
+    }
     
     // 从数据库查找用户信息（查找所有使用相同 email 的用戶記錄）
     if (currentUserEmail) {
@@ -55,9 +61,11 @@ export default async function handler(req, res) {
       const dbUsers = await users.find({ email: currentUserEmail }).toArray();
       if (dbUsers.length > 0) {
         // 收集所有可能的 userID
-        const allPossibleUserIDs = dbUsers
-          .map(user => user.userID)
-          .filter(userID => userID);
+        dbUsers.forEach(user => {
+          if (user.userID && !allPossibleUserIDs.includes(user.userID)) {
+            allPossibleUserIDs.push(user.userID);
+          }
+        });
         
         // 如果 session 中沒有 userID，使用第一個找到的
         if (!currentUserID && allPossibleUserIDs.length > 0) {
@@ -81,10 +89,13 @@ export default async function handler(req, res) {
     const postAuthorEmail = post.author?.email;
     const postAuthorName = post.author?.name;
     
-    // 通過 userID 匹配（優先檢查，大小寫不敏感）
+    // 通過 userID 匹配（檢查貼文的 author.userID 是否與任何使用相同 email 的用戶的 userID 匹配）
+    // 這是關鍵：即使當前 session 的 userID 不同，只要貼文的 author.userID 與任何使用相同 email 的用戶的 userID 匹配，就認為是同一個人
     const isAuthorByUserID = postAuthorUserID && 
-                             currentUserID &&
-                             (String(postAuthorUserID).toLowerCase() === String(currentUserID).toLowerCase());
+                             allPossibleUserIDs.length > 0 &&
+                             allPossibleUserIDs.some(userID => 
+                               String(userID).toLowerCase() === String(postAuthorUserID).toLowerCase()
+                             );
     
     // 通過 email 匹配（即使 userID 存在也檢查，因為可能使用不同 provider 但同一個 email）
     // 這是關鍵：即使 userID 不同，只要 email 相同，就認為是同一個人
@@ -114,6 +125,7 @@ export default async function handler(req, res) {
           userID: currentUserID,
           email: currentUserEmail,
           name: currentUserName,
+          allPossibleUserIDs: allPossibleUserIDs,
         },
         isAuthorByUserID,
         isAuthorByEmail,
