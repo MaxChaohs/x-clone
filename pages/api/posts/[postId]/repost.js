@@ -44,19 +44,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // 确保 userID 存在（先獲取 userID，再檢查是否已轉發）
+    // 確保 userID 和 email 存在（先獲取，再檢查是否已轉發）
     let authorUserID = session.user?.userID;
     let authorEmail = session.user?.email;
 
-    // 如果 session 中没有 userID，从数据库查找
+    // 如果 session 中没有 userID，从数据库查找（查找所有使用相同 email 的用戶記錄）
     if (!authorUserID && session.user?.email) {
-      const dbUser = await users.findOne({ email: session.user.email });
-      if (dbUser && dbUser.userID) {
-        authorUserID = dbUser.userID;
+      // 查找所有使用相同 email 的用戶記錄（處理不同 provider 但同一個 email 的情況）
+      const dbUsers = await users.find({ email: session.user.email }).toArray();
+      if (dbUsers.length > 0) {
+        // 使用第一個找到的 userID（通常相同 email 的用戶會有相同的 userID）
+        authorUserID = dbUsers[0].userID;
       }
     }
 
-    if (!authorUserID) {
+    if (!authorUserID && !authorEmail) {
       return res.status(400).json({
         success: false,
         message: '無法識別用戶身份',
@@ -64,19 +66,16 @@ export default async function handler(req, res) {
     }
 
     // 檢查是否已經轉發過（考慮使用不同 provider 但同一個 email 的情況）
-    // 先通過 userID 檢查
-    let existingRepost = await posts.findOne({
+    // 構建查詢條件：同時檢查 userID 和 email（使用 $or 查詢）
+    const repostQuery = {
       'repost.originalPostId': postId,
-      'author.userID': authorUserID,
-    });
+      $or: [
+        ...(authorUserID ? [{ 'author.userID': authorUserID }] : []),
+        ...(authorEmail ? [{ 'author.email': authorEmail }] : []),
+      ],
+    };
 
-    // 如果沒有找到，且有用 email，也通過 email 檢查（處理不同 provider 但同一個 email 的情況）
-    if (!existingRepost && authorEmail) {
-      existingRepost = await posts.findOne({
-        'repost.originalPostId': postId,
-        'author.email': authorEmail,
-      });
-    }
+    const existingRepost = await posts.findOne(repostQuery);
 
     if (existingRepost) {
       // 如果已经转发过，取消转发（删除转发）

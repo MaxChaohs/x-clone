@@ -49,18 +49,29 @@ export default async function handler(req, res) {
     let currentUserEmail = session.user?.email;
     let currentUserName = session.user?.name;
     
-    // 从数据库查找用户信息
+    // 从数据库查找用户信息（查找所有使用相同 email 的用戶記錄）
     if (currentUserEmail) {
-      const dbUser = await users.findOne({ email: currentUserEmail });
-      if (dbUser) {
-        if (dbUser.userID && !currentUserID) {
-          currentUserID = dbUser.userID;
+      // 查找所有使用相同 email 的用戶記錄（處理不同 provider 但同一個 email 的情況）
+      const dbUsers = await users.find({ email: currentUserEmail }).toArray();
+      if (dbUsers.length > 0) {
+        // 收集所有可能的 userID
+        const allPossibleUserIDs = dbUsers
+          .map(user => user.userID)
+          .filter(userID => userID);
+        
+        // 如果 session 中沒有 userID，使用第一個找到的
+        if (!currentUserID && allPossibleUserIDs.length > 0) {
+          currentUserID = allPossibleUserIDs[0];
         }
-        if (dbUser.email && !currentUserEmail) {
-          currentUserEmail = dbUser.email;
+        
+        // 確保 email 正確
+        if (!currentUserEmail) {
+          currentUserEmail = dbUsers[0].email;
         }
-        if (dbUser.name && !currentUserName) {
-          currentUserName = dbUser.name;
+        
+        // 確保 name 正確
+        if (!currentUserName) {
+          currentUserName = dbUsers[0].name;
         }
       }
     }
@@ -70,17 +81,18 @@ export default async function handler(req, res) {
     const postAuthorEmail = post.author?.email;
     const postAuthorName = post.author?.name;
     
-    // 通过 userID 匹配（優先檢查）
+    // 通過 userID 匹配（優先檢查，大小寫不敏感）
     const isAuthorByUserID = postAuthorUserID && 
                              currentUserID &&
                              (String(postAuthorUserID).toLowerCase() === String(currentUserID).toLowerCase());
     
-    // 通过 email 匹配（即使 userID 存在也檢查，因為可能使用不同 provider 但同一個 email）
+    // 通過 email 匹配（即使 userID 存在也檢查，因為可能使用不同 provider 但同一個 email）
+    // 這是關鍵：即使 userID 不同，只要 email 相同，就認為是同一個人
     const isAuthorByEmail = postAuthorEmail && 
                             currentUserEmail &&
                             String(postAuthorEmail).toLowerCase() === String(currentUserEmail).toLowerCase();
     
-    // 通过 name 匹配（當 userID 和 email 都不匹配時，作為後備方案）
+    // 通過 name 匹配（當 userID 和 email 都不匹配時，作為後備方案）
     const isAuthorByName = !isAuthorByUserID && 
                           !isAuthorByEmail &&
                           postAuthorName && 

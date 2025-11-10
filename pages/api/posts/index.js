@@ -63,13 +63,17 @@ export default async function handler(req, res) {
       }
 
       // 檢查每個貼文是否已被當前用戶轉發
-      // 如果沒有 currentUserID，也嘗試通過 email 查找所有可能的 userID
+      // 查找所有使用相同 email 的用戶記錄（處理不同 provider 但同一個 email 的情況）
       let allPossibleUserIDs = [];
+      let currentUserEmail = session.user?.email;
+      
       if (currentUserID) {
         allPossibleUserIDs.push(currentUserID);
       }
-      if (session.user?.email) {
-        const usersWithSameEmail = await users.find({ email: session.user.email }).toArray();
+      
+      // 查找所有使用相同 email 的用戶記錄
+      if (currentUserEmail) {
+        const usersWithSameEmail = await users.find({ email: currentUserEmail }).toArray();
         usersWithSameEmail.forEach(user => {
           if (user.userID && !allPossibleUserIDs.includes(user.userID)) {
             allPossibleUserIDs.push(user.userID);
@@ -80,12 +84,18 @@ export default async function handler(req, res) {
       const postsWithRepostStatus = await Promise.all(
         allPosts.map(async (post) => {
           let isReposted = false;
-          if (allPossibleUserIDs.length > 0) {
-            // 檢查是否有任何可能的 userID 已轉發此貼文
-            const repostedPost = await posts.findOne({
-              'repost.originalPostId': post._id.toString(),
-              'author.userID': { $in: allPossibleUserIDs },
-            });
+          
+          // 構建查詢條件：同時檢查 userID 和 email
+          const repostQuery = {
+            'repost.originalPostId': post._id.toString(),
+            $or: [
+              ...(allPossibleUserIDs.length > 0 ? [{ 'author.userID': { $in: allPossibleUserIDs } }] : []),
+              ...(currentUserEmail ? [{ 'author.email': currentUserEmail }] : []),
+            ],
+          };
+          
+          if (allPossibleUserIDs.length > 0 || currentUserEmail) {
+            const repostedPost = await posts.findOne(repostQuery);
             isReposted = !!repostedPost;
           }
 
