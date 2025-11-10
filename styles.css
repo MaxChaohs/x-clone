@@ -1,0 +1,469 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #000000;
+    color: #ffffff;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+/* 左側邊欄 */
+.sidebar {
+    width: 275px;
+    background-color: #000000;
+    border-right: 1px solid #2f3336;
+    display: flex;
+    flex-direction: column;
+    padding: 0 12px;
+    position: relative;
+}
+
+/* Logo 區域 */
+.logo-container {
+    padding: 12px 0;
+    margin-bottom: 4px;
+}
+
+.logo {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffffff;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.logo:hover {
+    background-color: #181818;
+}
+
+/* 導航選單 */
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 24px;
+    text-decoration: none;
+    color: #ffffff;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 20px;
+    font-weight: 400;
+    width: 100%;
+    text-align: left;
+}
+
+.nav-item:hover {
+    background-color: #181818;
+}
+
+.nav-item.active {
+    font-weight: 700;
+}
+
+.nav-item.active:not(.post-button) {
+    background-color: transparent;
+}
+
+.nav-icon {
+    width: 26px;
+    height: 26px;
+    margin-right: 20px;
+    stroke: #ffffff;
+}
+
+.nav-text {
+    font-size: 20px;
+}
+
+/* Post 按鈕 - 明亮底色 */
+.post-button {
+    background-color: #1d9bf0 !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    margin-top: 8px;
+    justify-content: center;
+    padding: 16px;
+    border-radius: 24px;
+}
+
+.post-button:hover {
+    background-color: #1a8cd8 !important;
+}
+
+.post-text {
+    font-size: 17px;
+}
+
+/* 用戶區域 */
+.user-section {
+    position: relative;
+    padding: 12px 0;
+    margin-top: auto;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.user-info:hover {
+    background-color: #181818;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 12px;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-handle {
+    font-size: 15px;
+    color: #71767b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.more-icon {
+    width: 18px;
+    height: 18px;
+    margin-left: 12px;
+    stroke: #ffffff;
+}
+
+/* Logout Popup */
+.logout-popup {
+    position: absolute;
+    bottom: 80px;
+    left: 12px;
+    right: 12px;
+    background-color: #16181c;
+    border: 1px solid #2f3336;
+    border-radius: 16px;
+    padding: 8px;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+}
+
+.logout-popup.show {
+    display: block;
+}
+
+.logout-button {
+    width: 100%;
+    padding: 16px;
+    background-color: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 400;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.logout-button:hover {
+    background-color: #1d1f23;
+}
+
+/* 主內容區域 */
+.main-content {
+    flex: 1;
+    background-color: #000000;
+    overflow-y: auto;
+}
+
+.page-content {
+    min-height: 100%;
+}
+
+.content-placeholder {
+    padding: 24px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.content-placeholder h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #ffffff;
+}
+
+.content-placeholder p {
+    font-size: 15px;
+    color: #71767b;
+}
+
+/* 登入/註冊頁面 */
+.auth-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+}
+
+.auth-box {
+    background-color: #000000;
+    border: 1px solid #2f3336;
+    border-radius: 16px;
+    padding: 40px;
+}
+
+.auth-logo {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo-large {
+    font-size: 48px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.auth-title {
+    font-size: 31px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.oauth-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.oauth-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #2f3336;
+    border-radius: 24px;
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.oauth-btn:hover {
+    background-color: #181818;
+}
+
+.oauth-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.divider {
+    position: relative;
+    text-align: center;
+    margin: 24px 0;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 45%;
+    height: 1px;
+    background-color: #2f3336;
+}
+
+.divider::before {
+    left: 0;
+}
+
+.divider::after {
+    right: 0;
+}
+
+.divider span {
+    position: relative;
+    padding: 0 12px;
+    background-color: #000000;
+    color: #71767b;
+    font-size: 15px;
+}
+
+.userid-section {
+    margin-top: 24px;
+}
+
+.auth-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #2f3336;
+}
+
+.auth-tab {
+    flex: 1;
+    padding: 12px 0;
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #71767b;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.auth-tab:hover {
+    color: #ffffff;
+    background-color: #181818;
+}
+
+.auth-tab.active {
+    color: #ffffff;
+    border-bottom-color: #1d9bf0;
+    font-weight: 700;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 16px;
+    background-color: #000000;
+    border: 1px solid #2f3336;
+    border-radius: 4px;
+    color: #ffffff;
+    font-size: 15px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #1d9bf0;
+}
+
+.form-group input::placeholder {
+    color: #71767b;
+}
+
+.form-hint {
+    font-size: 13px;
+    color: #71767b;
+}
+
+.error-message {
+    font-size: 13px;
+    color: #f4212e;
+    min-height: 20px;
+}
+
+.auth-submit-btn {
+    width: 100%;
+    padding: 12px 16px;
+    background-color: #ffffff;
+    border: none;
+    border-radius: 24px;
+    color: #000000;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-top: 8px;
+}
+
+.auth-submit-btn:hover {
+    background-color: #e6e6e6;
+}
+
+.auth-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+

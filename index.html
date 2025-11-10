@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VAS - 社群網站</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 左側邊欄 -->
+        <aside class="sidebar">
+            <!-- 主選單圖標 -->
+            <div class="logo-container">
+                <div class="logo">VAS</div>
+            </div>
+
+            <!-- 導航選單 -->
+            <nav class="nav-menu">
+                <a href="/home" class="nav-item" data-route="/home">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span class="nav-text">Home</span>
+                </a>
+
+                <a href="/messages" class="nav-item" data-route="/messages">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    <span class="nav-text">Messages</span>
+                </a>
+
+                <a href="/TEST_MAX" class="nav-item" data-route="/TEST_MAX" id="profileNav">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <span class="nav-text">Profile</span>
+                </a>
+
+                <a href="/compose/post" class="nav-item post-button" data-route="/compose/post">
+                    <span class="post-text">Post</span>
+                </a>
+            </nav>
+
+            <!-- 用戶帳戶資訊 -->
+            <div class="user-section">
+                <div class="user-info" id="userInfo">
+                    <div class="user-avatar">
+                        <img src="https://via.placeholder.com/40" alt="User Avatar">
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name">NameHere</div>
+                        <div class="user-handle">@TEST_MAX</div>
+                    </div>
+                    <svg class="more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                    </svg>
+                </div>
+
+                <!-- Logout Popup -->
+                <div class="logout-popup" id="logoutPopup">
+                    <button class="logout-button" id="logoutBtn">登出</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 登入/註冊頁面 -->
+        <div id="auth-page" class="auth-page" style="display: none;">
+            <div class="auth-container">
+                <div class="auth-box">
+                    <div class="auth-logo">
+                        <div class="logo-large">X</div>
+                    </div>
+                    <h1 class="auth-title">加入 X</h1>
+                    
+                    <!-- OAuth 登入按鈕 -->
+                    <div class="oauth-section">
+                        <button class="oauth-btn google-btn" id="googleOAuth">
+                            <svg class="oauth-icon" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            <span>使用 Google 繼續</span>
+                        </button>
+                        
+                        <button class="oauth-btn github-btn" id="githubOAuth">
+                            <svg class="oauth-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                            </svg>
+                            <span>使用 GitHub 繼續</span>
+                        </button>
+                        
+                        <button class="oauth-btn facebook-btn" id="facebookOAuth">
+                            <svg class="oauth-icon" viewBox="0 0 24 24" fill="#1877F2">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                            </svg>
+                            <span>使用 Facebook 繼續</span>
+                        </button>
+                    </div>
+
+                    <div class="divider">
+                        <span>或</span>
+                    </div>
+
+                    <!-- 用戶ID 登入/註冊 -->
+                    <div class="userid-section">
+                        <div class="auth-tabs">
+                            <button class="auth-tab active" data-tab="login">登入</button>
+                            <button class="auth-tab" data-tab="register">註冊</button>
+                        </div>
+
+                        <div class="auth-form" id="loginForm">
+                            <div class="form-group">
+                                <label for="loginUserID">用戶ID</label>
+                                <input type="text" id="loginUserID" placeholder="輸入您的用戶ID" required>
+                                <span class="error-message" id="loginError"></span>
+                            </div>
+                            <button class="auth-submit-btn" id="loginBtn">登入</button>
+                        </div>
+
+                        <div class="auth-form" id="registerForm" style="display: none;">
+                            <div class="form-group">
+                                <label for="registerUserID">用戶ID</label>
+                                <input type="text" id="registerUserID" placeholder="輸入您想要的用戶ID" required>
+                                <small class="form-hint">用戶ID 規則：3-20 個字符，只能包含字母、數字、底線和連字符</small>
+                                <span class="error-message" id="registerError"></span>
+                            </div>
+                            <div class="form-group">
+                                <label for="registerName">顯示名稱</label>
+                                <input type="text" id="registerName" placeholder="輸入您的顯示名稱" required>
+                            </div>
+                            <button class="auth-submit-btn" id="registerBtn">註冊</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主內容區域 -->
+        <main class="main-content" id="mainApp" style="display: none;">
+            <!-- Home 頁面 -->
+            <div id="home-page" class="page-content">
+                <div class="content-placeholder">
+                    <h1>Home</h1>
+                    <p>這裡是首頁內容區域</p>
+                </div>
+            </div>
+
+            <!-- Messages 頁面 -->
+            <div id="messages-page" class="page-content" style="display: none;">
+                <div class="content-placeholder">
+                    <h1>Messages</h1>
+                    <p>這裡是訊息頁面內容區域</p>
+                </div>
+            </div>
+
+            <!-- Profile 頁面 -->
+            <div id="profile-page" class="page-content" style="display: none;">
+                <div class="content-placeholder">
+                    <h1>Profile</h1>
+                    <p>這裡是個人頁面內容區域</p>
+                </div>
+            </div>
+
+            <!-- Compose Post 頁面 -->
+            <div id="compose-post-page" class="page-content" style="display: none;">
+                <div class="content-placeholder">
+                    <h1>Compose Post</h1>
+                    <p>這裡是發文頁面內容區域</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
